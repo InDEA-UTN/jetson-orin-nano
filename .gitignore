@@ -1,0 +1,40 @@
+# Este repositorio es de documentación: no versionamos binarios grandes ni datos.
+# Los modelos, imágenes de disco y datasets se descargan o se generan; no se suben.
+
+# Modelos y pesos
+*.engine
+*.plan
+*.onnx
+*.pth
+*.pt
+*.trt
+*.caffemodel
+*.gguf
+
+# Imágenes de sistema y archivos de flasheo
+*.img
+*.img.xz
+*.zip
+*.tar
+*.tar.gz
+*.tar.bz2
+
+# Video y capturas masivas de datos
+*.mp4
+*.avi
+*.mkv
+*.h264
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Sistema operativo y editores
+.DS_Store
+Thumbs.db
+*~
+.vscode/
+.idea/
