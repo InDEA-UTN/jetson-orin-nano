@@ -20,9 +20,9 @@ Sin estos seis términos no se entiende ninguna página de documentación de Jet
 | **Módulo** | La computadora en sí: el System-on-Module con el SoC Orin, la RAM y el firmware. Es la plaquita que va enchufada arriba. |
 | **Placa portadora** (*carrier board*) | La placa de abajo, con los conectores: USB, red, DisplayPort, M.2, CSI, jack de alimentación. El *Developer Kit* es módulo + portadora. |
 | **Jetson Linux** / **L4T** | El sistema operativo base: Ubuntu adaptado por NVIDIA, con su kernel, su bootloader y sus drivers. Se versiona aparte, por ejemplo *L4T 36.5*. |
-| **JetPack** | El paquete completo: Jetson Linux + CUDA + cuDNN + TensorRT + herramientas. Es la versión que uno nombra en la práctica, por ejemplo *JetPack 6.2*. Cada JetPack corresponde a un L4T. |
+| **JetPack** | El paquete completo: Jetson Linux + CUDA + cuDNN + TensorRT + herramientas. Es la versión que uno nombra en la práctica, por ejemplo *JetPack 6.2.2*. Cada JetPack corresponde a un L4T. |
 | **QSPI** | Una memoria flash **en el módulo**, separada de la microSD y del SSD, donde vive el firmware de arranque (UEFI). Es la protagonista de la trampa nº 1. |
-| **Modo *force recovery*** | Un modo especial de arranque en el que la placa no arranca su sistema, sino que se deja programar desde una PC por el puerto USB-C. Es la única forma de escribir el firmware y de instalar en el SSD. |
+| **Modo *force recovery*** | Un modo especial de arranque en el que la placa no arranca su sistema, sino que se deja programar desde una PC por el puerto USB-C. Es la única forma de escribir el firmware y de instalar en el SSD. Se entra puenteando los **pines 9 y 10 del header J14** (debajo del módulo) **con la placa desalimentada**, y recién después enchufando la fuente. |
 
 Dos herramientas que van a aparecer todo el tiempo:
 
@@ -56,13 +56,24 @@ el firmware.
 
 ### 3.1 Firmware viejo + imagen nueva = no arranca (la más importante)
 
+> **Verificado el 30/07/2026: a nuestra placa esta trampa no le tocó.** El UEFI reportó firmware
+> **`36.4.3`** (= JetPack 6.2), o sea generación 6, así que arranca imágenes 6.x directo y no hubo
+> que actualizar nada. Igual **hay que leer el firmware antes de instalar**: es lo que decide el
+> camino, y es un minuto.
+
 Las Orin Nano que salieron de fábrica con JetPack 5.x traen firmware anterior a la versión 36.0, y
 **ese firmware no puede arrancar una imagen de JetPack 6.x**. Hay que actualizarlo primero. Los dos
 caminos, según la documentación oficial:
 
-- **Camino puente por microSD**: grabar y arrancar la imagen de **JetPack 5.1.3** (NVIDIA publica
-  una imagen específica para esto), verificar que la actualización de bootloader quedó agendada e
-  instalar el paquete actualizador de QSPI:
+- **Camino por SDK Manager**: desde una PC con Ubuntu x86_64 nativo, con la placa en *force
+  recovery*. Escribe la **QSPI y el sistema operativo en la misma operación**, y acepta tanto la
+  **microSD** como el **SSD NVMe** como destino. Si hay PC anfitriona, **es el camino corto**: un
+  solo procedimiento resuelve firmware e instalación, sin importar de qué versión se venga. Y es
+  obligatorio si el destino es el SSD.
+
+- **Camino puente por microSD**, para quien **no** tiene esa PC: grabar y arrancar la imagen de
+  **JetPack 5.1.3** (NVIDIA publica una imagen específica para esto), verificar que la actualización
+  de bootloader quedó agendada e instalar el paquete actualizador de QSPI:
 
   ```bash
   sudo systemctl status nv-l4t-bootloader-config
@@ -71,16 +82,24 @@ caminos, según la documentación oficial:
   ```
 
   Después de que reinicie y actualice la QSPI, se cambia la microSD por la de la versión destino.
-
-- **Camino por SDK Manager**: desde una PC con Ubuntu x86_64, con la placa en *force recovery*.
-  Es el camino obligatorio si el destino es el SSD.
+  Son dos descargas grandes, tres reinicios y dos esperas a ciegas.
 
 Para ver qué firmware tiene la placa: apretar **Esc** durante la pantalla de arranque de NVIDIA
 para entrar al menú de UEFI, y leer la versión ahí. Sin monitor, lo mismo por consola serie.
 
 **Esto hay que hacerlo antes de cualquier otra cosa**, y es lo primero que el documento
-`03_firmware_y_version_de_jetpack.md` tiene que resolver y dejar registrado: qué versión de firmware
-traía *nuestra* placa y qué camino usamos.
+[`03_firmware_y_version_de_jetpack.md`](03_firmware_y_version_de_jetpack.md) tiene que resolver y
+dejar registrado: qué versión de firmware traía *nuestra* placa y qué camino usamos.
+
+**Versiones vigentes (julio 2026).** Los números envejecen rápido; conviene confirmarlos contra la
+página de descargas antes de bajar nada.
+
+- **JetPack 6.2.2** = Jetson Linux 36.5, Ubuntu 22.04, kernel 5.15. Es la línea madura para Orin y
+  la que elegimos. Ojo: **NVIDIA no publica imagen de microSD de 6.2.2** — se instala **6.2.1** y se
+  sube a 6.2.2 con `apt`, que es legítimo porque no cambia la versión mayor (ver §3.6).
+- **JetPack 7.2** = Jetson Linux 39.2, Ubuntu 24.04. Ya alcanza a la familia Orin, pero **exige
+  firmware de generación 36.x igual**, así que no ahorra ningún paso, y el material de tutoriales
+  todavía está migrando.
 
 ### 3.2 El puerto USB-C no alimenta la placa
 
@@ -169,8 +188,9 @@ eso rápido. Dos medidas que se hacen una vez y ayudan siempre:
   sudo systemctl set-default graphical.target    # para volver atrás
   ```
 
-- **Tener swap en el SSD** (nunca en la microSD, que se destruye con eso). Ayuda sobre todo al
-  compilar y al cargar modelos grandes.
+- **Tener swap en el SSD**, y **solo** en el SSD. En la microSD **no**: el swap la escribe sin parar
+  y la destruye en poco tiempo. Mientras no haya SSD, la medida realista es la anterior — trabajar
+  sin escritorio gráfico. Ayuda sobre todo al compilar y al cargar modelos grandes.
 
 Este es, además, el argumento principal para instalar en SSD y no en microSD.
 
@@ -246,10 +266,15 @@ documento.
    §3.3).
 2. Identificar el modelo de la cámara y su flex (§3.4).
 3. Ver la versión de firmware de la placa y decidir la versión de JetPack objetivo (§3.1).
-4. Arranque desde microSD, para confirmar que el hardware está sano.
-5. Actualización de firmware, si hace falta.
-6. Instalación en SSD NVMe.
-7. Puesta a punto, cámara, primer ejemplo de inferencia.
+4. Instalación en microSD con SDK Manager, que **actualiza el firmware en la misma operación**.
+   Sirve además para confirmar que la placa, la fuente y el monitor están sanos antes de complicar.
+5. Puesta a punto: `jtop`, modo de energía, Docker, verificación de CUDA.
+6. Cámara y primer ejemplo de inferencia.
+7. Instalación en SSD NVMe cuando esté el disco: el mismo procedimiento del punto 4 cambiando el
+   destino. Recién ahí, swap.
+
+Sin PC anfitriona el orden es otro: el puente por JetPack 5.1.3 (§3.1) va antes del punto 4, y la
+instalación en SSD no es posible hasta conseguirla.
 
 Y una regla de trabajo: **anotar mientras se hace, no después**. El valor de este repositorio no
 está en el resultado final sino en los pasos intermedios y en los errores, que es exactamente lo que
