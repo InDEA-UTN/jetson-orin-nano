@@ -35,8 +35,11 @@ Tres cosas que confunden en esa página y conviene tener claras de antemano:
 - **La 6.2.2 no tiene imagen de tarjeta propia.** Su página remite a la de 6.2.1 y dice textual:
   *"Use the SD Card image of JetPack 6.2.1 / Jetson Linux 36.4.4 and APT upgrade to JetPack 6.2.2 /
   Jetson Linux 36.5"*. Así que el camino es 6.2.1 por Etcher y 6.2.2 por `apt`.
-- **El archivo se llama `jp62`, no `jp621`.** NVIDIA lo numera como "JetPack 6.2 revisión 1". Es el
-  correcto: corresponde a L4T 36.4.4.
+- **El nombre del archivo no dice "6.2.1" tal cual.** Según de dónde se descargue puede aparecer
+  como `jp62-r1-orin-nano-sd-card-image.zip` o como `jetson-orin-nano-devkit-super-SD-image_JP6.2.1`
+  (o similar). Ambos son el mismo archivo: NVIDIA le dice internamente "JetPack 6.2 revisión 1"
+  (`r1` = *revision 1*) a lo que en la página de descargas se muestra como versión **6.2.1**. Es el
+  archivo correcto y corresponde a L4T 36.4.4.
 - La página avisa que las unidades con **firmware de fábrica** tienen que actualizarlo antes
   siguiendo la *Initial Setup Guide*. **A nosotros no nos aplica**: el firmware ya era 36.4.3.
 
@@ -50,11 +53,26 @@ sha256sum jp62-r1-orin-nano-sd-card-image.zip
 
 ### 2. Grabar la tarjeta
 
-Con [Balena Etcher](https://etcher.balena.io/): seleccionar el `.zip` (no hace falta descomprimirlo),
-seleccionar la microSD y grabar. Etcher verifica solo al terminar; dejarlo que verifique.
+Insertar la microSD en el lector de la PC (con adaptador si hace falta) y abrir Balena Etcher. Si se
+descargó como carpeta suelta en vez de `.AppImage`, el ejecutable está adentro y se corre así:
 
-> Revisá dos veces qué unidad elegiste. Etcher no pregunta de nuevo, y una microSD y un pendrive de
-> respaldo se parecen bastante en la lista.
+```bash
+chmod +x balenaEtcher
+./balenaEtcher
+```
+
+Dentro del programa:
+
+1. **"Flash from file"** → elegir el `.zip` descargado (no hace falta descomprimirlo).
+2. **"Select target"** → elegir la microSD. Etcher lista todos los discos removibles conectados.
+3. **"Flash!"** → puede pedir la contraseña del usuario de la PC (necesita permisos para escribir el
+   disco). Empieza a grabar y al terminar **verifica solo**; dejarlo que verifique, no cortar antes.
+4. Cuando termina y dice "Flash Complete", expulsar la tarjeta desde el sistema operativo (no solo
+   tirar del lector) y recién ahí sacarla.
+
+> Revisá dos veces qué unidad elegiste en "Select target". Etcher no pregunta de nuevo, y una
+> microSD y un pendrive de respaldo se parecen bastante en la lista: se borra todo lo que tenga la
+> unidad elegida.
 
 *(completar: modelo de la microSD, duración del grabado)*
 
@@ -66,6 +84,9 @@ seleccionar la microSD y grabar. Etcher verifica solo al terminar; dejarlo que v
 3. Enchufar la fuente de 19 V. **La placa enciende sola: no hay botón.**
 4. Completar la configuración de Ubuntu: usuario, contraseña, idioma, zona horaria, teclado, red.
 
+**Foto:** [`imagenes/04_boot_inicial.jpg`](imagenes/04_boot_inicial.jpg) — pantalla del primer
+arranque de Ubuntu en la Jetson.
+
 Registrar el estado de partida con el script del repositorio, que junta todo de una sola vez:
 
 ```bash
@@ -73,6 +94,9 @@ bash ejemplos/verificar_entorno.sh | tee estado_$(date +%F)_recien_instalada.txt
 ```
 
 *(completar: pegar la salida entera)*
+
+**Foto:** [`imagenes/04_arbol_procesos.jpg`](imagenes/04_arbol_procesos.jpg) — árbol de procesos
+al bootear.
 
 Lo que hay que ver en esa salida:
 

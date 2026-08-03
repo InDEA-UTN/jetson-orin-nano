@@ -32,7 +32,8 @@ Es el primer dato que hay que tener, y el que nadie anota. Se lee **antes** de e
    desde ese mismo instante. La ventana durante el logo de NVIDIA es corta.
    **El USB-C no alimenta la placa.**
 3. Entra al menú UEFI. La versión de firmware aparece en la pantalla principal.
-4. Anotarla textual acá abajo, y sacarle una foto (va en `imagenes/`).
+4. Anotarla textual acá abajo, y sacarle una foto: guardarla como
+   [`imagenes/03_uefi.jpg`](imagenes/03_uefi.jpg).
 5. Para apagar: `sudo poweroff` si llegó a arrancar un sistema, o desenchufar la fuente estando en
    el menú UEFI.
 
@@ -40,6 +41,9 @@ Sin monitor, lo mismo se lee por consola serie: cable USB-a-TTL al *button heade
 TXD en el pin 4 y GND en el pin 7.
 
 **Firmware de fábrica de nuestra placa: `36.4.3`**, leído en el menú UEFI el **30/07/2026**.
+
+**Foto:** [`imagenes/03_uefi.jpg`](imagenes/03_uefi.jpg) — pantalla del menú UEFI mostrando la
+versión de firmware.
 
 Es decir: la placa vino con firmware de **generación JetPack 6** (concretamente el de JetPack 6.2,
 que es el release donde apareció el modo MAXN SUPER). **La trampa nº 1 no nos tocó.** No hay que

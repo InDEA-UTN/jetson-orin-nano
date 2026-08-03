@@ -23,6 +23,7 @@ Sin estos seis términos no se entiende ninguna página de documentación de Jet
 | **JetPack** | El paquete completo: Jetson Linux + CUDA + cuDNN + TensorRT + herramientas. Es la versión que uno nombra en la práctica, por ejemplo *JetPack 6.2.2*. Cada JetPack corresponde a un L4T. |
 | **QSPI** | Una memoria flash **en el módulo**, separada de la microSD y del SSD, donde vive el firmware de arranque (UEFI). Es la protagonista de la trampa nº 1. |
 | **Modo *force recovery*** | Un modo especial de arranque en el que la placa no arranca su sistema, sino que se deja programar desde una PC por el puerto USB-C. Es la única forma de escribir el firmware y de instalar en el SSD. Se entra puenteando los **pines 9 y 10 del header J14** (debajo del módulo) **con la placa desalimentada**, y recién después enchufando la fuente. |
+| **BalenaEtcher** | Programa para grabar (flashear) imágenes de sistema operativo en una SD/USB de forma segura. |
 
 Dos herramientas que van a aparecer todo el tiempo:
 

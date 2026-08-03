@@ -14,7 +14,7 @@ cada cosa. Casi todo sale de las trampas del documento
 |-----|---------|--------|
 | Jetson Orin Nano Developer Kit 8GB | La placa. | Disponible |
 | Fuente del kit, **19 V**, jack DC **5,5 × 2,5 mm** | El USB-C **no alimenta** la placa (§3.2). Alimentar de menos causa reinicios que parecen fallas de software. | Disponible — *anotar los watts de la etiqueta: (completar)* |
-| **microSD A2, 64 GB o más**, de marca conocida | Es el medio de arranque inicial. Una tarjeta lenta o falsa se manifiesta como "la placa no anda" (§3.9). | Disponible — *modelo: (completar)* |
+| **microSD A2, 64 GB o más**, de marca conocida | Es el medio de arranque inicial. Una tarjeta lenta o falsa se manifiesta como "la placa no anda" (§3.9). | Disponible — **128 GB**, marca/clase A2: *(completar)* |
 | **Monitor con DisplayPort**, o adaptador **DisplayPort → HDMI activo** | La placa **no tiene HDMI** (§3.3). El adaptador conviene que sea activo. | Disponible — *modelo del adaptador: (completar)* |
 | Teclado y mouse USB | Configuración inicial de Ubuntu y, sobre todo, entrar al menú UEFI con **Esc**. | Disponible |
 | Cable de red Ethernet | La actualización de firmware y la de JetPack necesitan Internet. Más confiable que el WiFi para el primer arranque. | *(completar)* |
@@ -36,6 +36,12 @@ cada cosa. Casi todo sale de las trampas del documento
 | **SSD NVMe M.2** | **Key M, tipo 2280, PCIe 3.0 x4.** La placa tiene además un slot Key M tipo **2230** a PCIe 3.0 x2 — más lento y más chico; el bueno es el 2280. | El medio de trabajo definitivo: más rápido, más espacio y el único lugar donde se puede poner **swap** (en la microSD el swap la destruye, §3.7). Acá va el proyecto de visión + IA. |
 | **Cámara CSI** | Conector de **22 posiciones**, paso 0,5 mm. Las cámaras estilo Raspberry Pi traen flex de **15 pines**: hace falta el adaptador 15 → 22. | Documento [`07_camara_csi.md`](07_camara_csi.md). |
 | Webcam USB | Cualquiera compatible con V4L2. | Plan B: anda sin configurar nada y permite avanzar con la inferencia aunque la CSI se complique. |
+
+> **La nuestra:** SSD M.2 2280 NVMe **Gen4x4** de **250 GB**, modelo **MG43**. El slot de la placa es
+> **PCIe 3.0 (Gen3) x4**, así que el disco va a andar a velocidad Gen3 y no a la Gen4 que soporta:
+> es una limitación del slot, no una falla del disco. Falta confirmar acá: marca completa del
+> disco, si trae disipador propio (el kit no incluye uno para el M.2, y a velocidad NVMe conviene
+> ponerle uno o al menos un termopad) y el TBW/endurance si se va a usar para swap.
 
 > **Pendiente que conviene resolver ya:** el **modelo exacto de sensor** de la cámara del
 > laboratorio. Con **IMX219** o **IMX477** alcanza con `jetson-io.py` porque JetPack ya trae los
