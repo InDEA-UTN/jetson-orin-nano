@@ -20,8 +20,10 @@ porque la versión de firmware decide cuál de los dos caminos de acá abajo cor
 resolver el firmware viejo; con firmware de generación 6 no aporta nada y solo agrega pasos donde
 algo puede salir mal.
 
-SDK Manager se va a usar igual más adelante, pero para el **SSD NVMe**
-([`05_instalacion_en_ssd_nvme.md`](05_instalacion_en_ssd_nvme.md)), donde sí es obligatorio.
+SDK Manager sí se terminó usando, pero para el **SSD NVMe**
+([`05_instalacion_en_ssd_nvme.md`](05_instalacion_en_ssd_nvme.md)), donde es obligatorio — no por
+firmware viejo, sino porque el SSD queda dentro de la placa y no se puede grabar con Etcher como
+la microSD.
 
 ## Camino A — Balena Etcher (el nuestro)
 

@@ -38,10 +38,11 @@ cada cosa. Casi todo sale de las trampas del documento
 | Webcam USB | Cualquiera compatible con V4L2. | Plan B: anda sin configurar nada y permite avanzar con la inferencia aunque la CSI se complique. |
 
 > **La nuestra:** SSD M.2 2280 NVMe **Gen4x4** de **250 GB**, modelo **MG43**. El slot de la placa es
-> **PCIe 3.0 (Gen3) x4**, así que el disco va a andar a velocidad Gen3 y no a la Gen4 que soporta:
-> es una limitación del slot, no una falla del disco. Falta confirmar acá: marca completa del
-> disco, si trae disipador propio (el kit no incluye uno para el M.2, y a velocidad NVMe conviene
-> ponerle uno o al menos un termopad) y el TBW/endurance si se va a usar para swap.
+> **PCIe 3.0 (Gen3) x4**, así que el disco anda a velocidad Gen3 y no a la Gen4 que soporta: es una
+> limitación del slot, no una falla del disco. **Instalado y flasheado** — ver
+> [`05_instalacion_en_ssd_nvme.md`](05_instalacion_en_ssd_nvme.md). Falta confirmar acá: marca
+> completa del disco, si trae disipador propio (el kit no incluye uno para el M.2, y a velocidad
+> NVMe conviene ponerle uno o al menos un termopad) y el TBW/endurance si se va a usar para swap.
 
 > **Pendiente que conviene resolver ya:** el **modelo exacto de sensor** de la cámara del
 > laboratorio. Con **IMX219** o **IMX477** alcanza con `jetson-io.py` porque JetPack ya trae los
