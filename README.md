@@ -22,6 +22,8 @@ copió de la documentación oficial pero todavía no se probó, se marca como ta
 4. **Proyectos tutoriales** — recorridos de NVIDIA y de la comunidad, hechos de punta a punta.
 5. **Guía de uso** — las distintas maneras de trabajar con la placa (nativo, contenedores, remoto)
    con ejemplos mínimos de cada una.
+6. **Proyectos propios** — desarrollos del laboratorio hechos con la placa, de la especificación al
+   sistema funcionando.
 
 ## Cómo está organizado
 
@@ -30,6 +32,7 @@ copió de la documentación oficial pero todavía no se probó, se marca como ta
 | [`guia_de_iniciacion/`](guia_de_iniciacion/) | El recorrido de arranque, en orden: qué es la placa, qué hace falta, firmware, instalación en microSD y en SSD, puesta a punto y cámara. Es por acá por donde se empieza. |
 | [`tutoriales/`](tutoriales/) | Recorridos paso a paso sobre un tema concreto, pensados para hacerlos de principio a fin con la placa en la mano. Acá van los proyectos tutoriales. |
 | [`manuales/`](manuales/) | Material de consulta: las formas de trabajar con la placa, referencias de comandos, procedimientos y notas para volver a mirar cuando ya se sabe lo que se busca. |
+| [`proyectos/`](proyectos/) | Desarrollos propios hechos con la placa: el problema y la solución son nuestros, no el recorrido de un tutorial ajeno. Cada proyecto tiene su carpeta con la especificación, el código y la documentación. |
 | [`ejemplos/`](ejemplos/) | Código mínimo y funcional que acompaña a los documentos: scripts de captura, de inferencia y de verificación. |
 
 Si es la primera vez que abrís este repositorio, empezá por
