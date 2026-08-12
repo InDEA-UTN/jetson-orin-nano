@@ -8,13 +8,13 @@ carpeta, numerado para que el orden de lectura sea evidente.
 | # | Documento | Qué cubre | Estado |
 |---|-----------|-----------|--------|
 | 00 | [`00_antes_de_empezar.md`](00_antes_de_empezar.md) | Cómo arranca esta placa, las trampas conocidas y el vocabulario mínimo (JetPack, L4T, QSPI, modo recovery). Leerlo antes de tocar nada. | Escrito (de documentación, a validar en la placa) |
-| 01 | `01_que_es_la_jetson_orin_nano.md` | Qué es el módulo Orin Nano 8GB y qué trae la placa portadora del kit. Para qué la queremos en el laboratorio. | Pendiente |
+| 01 | [`01_que_es_la_jetson_orin_nano.md`](01_que_es_la_jetson_orin_nano.md) | Qué es el módulo Orin Nano 8GB y qué trae la placa portadora del kit. Para qué la queremos en el laboratorio. | Escrito |
 | 02 | [`02_que_hace_falta.md`](02_que_hace_falta.md) | Fuente, microSD, SSD NVMe, cable USB-C de datos, monitor DisplayPort, red y PC anfitriona. Qué de todo eso ya está en el laboratorio y qué hay que conseguir. | Escrito (falta completar modelos concretos) |
 | 03 | [`03_firmware_y_version_de_jetpack.md`](03_firmware_y_version_de_jetpack.md) | Cómo ver qué versión de firmware trae la placa, qué versión de JetPack elegimos y por qué, y cómo actualizar el firmware si hace falta. | **Verificado en la placa** — vino con firmware 36.4.3 |
 | 04 | [`04_instalacion_en_microsd.md`](04_instalacion_en_microsd.md) | Grabar la imagen con Etcher, primer arranque, configuración de Ubuntu, subida a 6.2.2 y verificación. Incluye el camino por SDK Manager para firmware viejo. | Escrito (pendiente de ejecutar en la placa) |
 | 05 | [`05_instalacion_en_ssd_nvme.md`](05_instalacion_en_ssd_nvme.md) | Montar el SSD M.2, poner la placa en modo *force recovery* y flashear a NVMe desde la PC anfitriona con SDK Manager. Dual boot con la microSD y cómo elegir entre las dos con F11. | **Verificado en la placa** — arranca desde el SSD |
-| 06 | `06_puesta_a_punto.md` | Lo que conviene dejar hecho una sola vez: `jtop`, modo de energía, swap, Docker, verificación de CUDA y de la versión instalada. | Pendiente |
-| 07 | `07_camara_csi.md` | Conectar la cámara al conector CSI, configurar el conector, verificar que el sensor aparece y hacer la primera captura y la primera vista en vivo. | Pendiente |
+| 06 | [`06_puesta_a_punto.md`](06_puesta_a_punto.md) | Lo que conviene dejar hecho una sola vez: `jtop`, modo de energía, swap, Docker, verificación de CUDA y de la versión instalada. | **Verificado en la placa** — corriendo desde el SSD |
+| 07 | [`07_camara_csi.md`](07_camara_csi.md) | Conectar la cámara al conector CSI, configurar el conector, verificar que el sensor aparece y hacer la primera captura y la primera vista en vivo. | **Verificado en la placa** — captura lista (ArduCam UC-517 / IMX477); vista en vivo y PTZ pendientes |
 | 08 | `08_primer_ejemplo_de_inferencia.md` | Un primer ejemplo de punta a punta: clasificar o detectar sobre el video de la cámara, y entender qué hizo cada parte. | Pendiente |
 
 La numeración puede ajustarse a medida que se escribe; lo que importa es que el orden de lectura
