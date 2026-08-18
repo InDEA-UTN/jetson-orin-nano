@@ -1,11 +1,11 @@
 # 07 — Cámara CSI
 
-Conectar la cámara al conector CSI, configurar el conector, verificar que el sensor aparece y
-hacer la primera captura. La vista en vivo queda para más adelante (ver estado abajo).
+Conectar la cámara al conector CSI, configurar el conector, verificar que el sensor aparece,
+hacer la primera captura y la primera vista en vivo, transmitida por red hacia la PC.
 
-> **Estado.** Verificado en la placa el **2026-08-11**: la cámara conecta, el sensor se detecta y
-> la primera captura funcionó. **La primera vista en vivo todavía no se hizo** — queda pendiente
-> junto con el control PTZ (motor de pan/tilt/zoom), que es una capa aparte.
+> **Estado.** Verificado en la placa el **2026-08-11**: la cámara conecta, el sensor se detecta,
+> la primera captura funcionó y la vista en vivo también, transmitida por la red hacia la PC.
+> **Solo queda pendiente el control PTZ** (motor de pan/tilt/zoom), que es una capa aparte.
 
 **Antes hay que haber hecho** [`06_puesta_a_punto.md`](06_puesta_a_punto.md).
 
@@ -130,8 +130,29 @@ ls /dev/video* /dev/media*
 
 ## 4. Primera captura
 
-Con `nvarguscamerasrc` (el pipeline de GStreamer que usa el ISP de la Jetson vía *libargus* — no
-necesita monitor conectado, corre bien por SSH):
+**GStreamer** es un framework para armar "tuberías" (*pipelines*) de audio/video como una cadena
+de piezas conectadas por `!`: una fuente, cero o más pasos de procesamiento, y un destino. El
+comando `gst-launch-1.0` arma y corre una de esas tuberías directo desde la terminal, sin escribir
+código. Es genérico — no es de NVIDIA ni de la Jetson — pero la Jetson aporta piezas propias para
+usar su hardware.
+
+**`nvarguscamerasrc`** es una de esas piezas: el "elemento fuente" que lee la cámara CSI a través
+del **ISP** (*Image Signal Processor*), un bloque de hardware dedicado dentro del chip de la
+Jetson que convierte los datos crudos del sensor (formato Bayer) en una imagen usable — hace el
+demosaicing, auto-exposición, balance de blancos y reducción de ruido en hardware, sin gastar CPU.
+Por debajo, `nvarguscamerasrc` habla con el ISP a través de **libargus**, la librería de cámara de
+NVIDIA (la misma que usan `nvgstcapture-1.0` y otras herramientas de captura de la Jetson).
+
+Como es un pipeline de terminal que en este caso escribe a un archivo (`filesink`), **no hace
+falta ningún monitor ni servidor gráfico (X) en la Jetson** — corre perfecto por SSH. Solo haría
+falta X si se agrega al final una pieza que dibuja en pantalla, como `nveglglessink` (ver
+"vista en vivo" más abajo).
+
+```bash
+gst-launch-1.0 nvarguscamerasrc num-buffers=1 sensor-id=0 ! \
+  'video/x-raw(memory:NVMM),width=3840,height=2160' ! nvjpegenc ! \
+  filesink location=~/primera_captura.jpg
+```
 
 ```bash
 gst-launch-1.0 nvarguscamerasrc num-buffers=1 sensor-id=0 ! \
@@ -155,11 +176,98 @@ scp indea@<ip_de_la_jetson>:~/primera_captura.jpg .
 
 Confirmado: la imagen se abre bien y muestra lo que ve la cámara.
 
+## 5. Vista en vivo, transmitida por red
+
+Como la Jetson no tiene monitor conectado, "vista en vivo" acá significa **transmitir el video
+por la red hacia la PC** y verlo ahí, en vez de dibujarlo en una pantalla local. Se arma con dos
+pipelines de GStreamer: uno en la Jetson que codifica y manda, y uno en la PC que recibe y
+muestra.
+
+### 5.1 Primer obstáculo: no llegaba nada — pero no era la red
+
+Antes de armar el pipeline completo, se probó la conectividad con **`nc`** (*netcat*, una
+herramienta para mandar/recibir datos crudos por la red sin ningún protocolo de aplicación de
+por medio — útil para probar si dos máquinas se pueden hablar en un puerto y protocolo dados
+antes de meter algo más complejo):
+
+```bash
+# en la PC: queda escuchando
+nc -u -l 5000
+# en la Jetson: manda un mensaje de prueba
+echo "hola desde la jetson" | nc -u -w1 <ip_de_la_PC> 5000
+```
+
+La primera vez no llegó nada, ni siquiera probando desde una segunda PC conectada por cable
+Ethernet (mismo segmento de red que la Jetson) — eso ya descartaba el tema de WiFi vs. Ethernet
+en subredes separadas (ver §0.1 de [`06_puesta_a_punto.md`](06_puesta_a_punto.md#01-reconectarse-sin-monitor-sin-buscar-la-ip-de-nuevo),
+que sí aplica a mDNS pero no necesariamente a esto). La causa real era más simple: **el firewall
+de la propia PC** (`ufw`) tiene la política por defecto "deny incoming" y solo dejaba pasar el
+puerto usado por VNC. Se resolvió abriendo el puerto:
+
+```bash
+sudo ufw allow 5000/udp
+```
+
+Con eso, la prueba de `nc` llegó bien. Moraleja: el tráfico **unicast** (una IP hablándole directo
+a otra) cruza sin problema entre WiFi y Ethernet en esta red — lo único que no cruza es el
+**multicast** que usa mDNS (§0.1 de 06). No hay que confundir los dos problemas.
+
+### 5.2 Segundo obstáculo: la Orin Nano no tiene codificador de video por hardware
+
+El primer intento de pipeline usaba `nvv4l2h264enc` (el encoder H.264 acelerado por hardware que
+trae la Jetson) y falló con `no element "nvv4l2h264enc"`. No es un paquete que faltó instalar:
+**la Jetson Orin Nano no tiene el motor NVENC** (el bloque de silicio dedicado a codificar
+video) — es una limitación real del chip, para abaratarlo frente a los modelos Orin NX/AGX, que
+sí lo tienen. Si tiene, en cambio, el decodificador (`nvv4l2decoder` — por eso aparece en
+`gst-inspect-1.0`, y por eso se pudo usar sin problema para leer video ya codificado).
+
+La alternativa que recomienda la documentación oficial de NVIDIA es codificar **por software**,
+con la CPU, usando el elemento `x264enc`:
+<https://docs.nvidia.com/jetson/archives/r36.2/DeveloperGuide/SD/Multimedia/SoftwareEncodeInOrinNano.html>.
+Con el preset `ultrafast` y `tune=zerolatency` (para minimizar el retraso, pensado para
+streaming en vivo y no para guardar un archivo) rinde bien en los 6 núcleos de la Orin Nano.
+
+Dos paquetes de GStreamer faltaban y se instalaron sobre la marcha:
+
+```bash
+# en la Jetson: h264parse vive en el paquete "bad"
+sudo apt install -y gstreamer1.0-plugins-bad
+
+# en la PC: el decodificador avdec_h264 vive en el paquete "libav"
+sudo apt install -y gstreamer1.0-libav
+```
+
+### 5.3 Pipelines finales que funcionaron
+
+**En la Jetson** (emisor — captura, codifica por software y manda por UDP):
+
+```bash
+gst-launch-1.0 nvarguscamerasrc sensor-id=0 ! \
+  'video/x-raw(memory:NVMM),width=1920,height=1080,format=NV12,framerate=30/1' ! \
+  nvvidconv ! video/x-raw,format=I420 ! \
+  x264enc speed-preset=ultrafast tune=zerolatency ! \
+  h264parse ! rtph264pay config-interval=1 pt=96 ! \
+  udpsink host=<ip_de_la_PC> port=5000
+```
+
+**En la PC** (receptor — arrancar primero, antes que el de la Jetson, para que quede esperando):
+
+```bash
+gst-launch-1.0 -v udpsrc port=5000 \
+  caps="application/x-rtp, media=(string)video, encoding-name=(string)H264, payload=(int)96" ! \
+  rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! autovideosink
+```
+
+**RTP** es el protocolo que empaqueta el video codificado en paquetes de red pensados para tiempo
+real (`rtph264pay` del lado que manda, `rtph264depay` del lado que recibe); va sobre **UDP** y no
+TCP porque para video en vivo es preferible perder algún paquete y seguir, antes que frenar todo
+esperando una retransmisión.
+
+Con los dos pipelines corriendo, se abrió una ventana en la PC mostrando el video en vivo de la
+cámara.
+
 ## Qué queda pendiente
 
-- **Primera vista en vivo** (streaming continuo, no solo una foto) — con `nvarguscamerasrc` sin
-  `num-buffers=1`, hacia un `nveglglessink` (necesita monitor/X en la Jetson) o hacia la red para
-  verla desde la PC.
 - **Control PTZ** (motor de pan/tilt/zoom de la UC-517): es una capa aparte del driver de imagen
   estándar, probablemente necesite software propio de ArduCam. No investigado todavía.
 - Reconectarse por SSH después de apagar y prender de nuevo puede requerir revisar la IP a mano

@@ -1,0 +1,50 @@
+# Problemas frecuentes
+
+Tabla de síntoma → causa probable → solución, alimentada **solo** con problemas que de verdad
+pasaron en esta placa (o en la PC anfitriona usada para flashearla) y que ya se resolvieron. Cada
+fila está rastreada a un documento de [`../guia_de_iniciacion/`](../guia_de_iniciacion/) o a una
+sesión de trabajo real — no hay nada hipotético acá.
+
+Escrito el **2026-08-13**, contra JetPack 6.2.3 / L4T 36.5, módulo P3767-0005 Developer Kit, SSD
+NVMe, usuario `indea`, cámara ArduCam UC-517 (IMX477).
+
+## Flasheo e instalación (SDK Manager)
+
+| Síntoma | Causa probable | Solución |
+|---|---|---|
+| SDK Manager avisa: *"There is not enough space on required partitions... Need additional ~21 GB on /dev/nvme0n1p4"* | La partición raíz de la **PC anfitriona** (no la Jetson) estaba casi llena — en este caso, la imagen de microSD ya usada (`.zip` + carpeta, 34GB) seguía en `~/Downloads`. | Borrar del disco de la PC lo que ya no hace falta (por ejemplo la imagen de microSD ya grabada) y reintentar. Ver [`05_instalacion_en_ssd_nvme.md#61`](../guia_de_iniciacion/05_instalacion_en_ssd_nvme.md#61-espacio-en-disco-de-la-pc-anfitriona). |
+| SDK Manager dice *"Jetson device is not ready for flash"* al arrancar el flasheo | Desconexión/orden de USB incorrecto — el modo *force recovery* no quedó bien tomado por el sistema operativo de la PC. | Desconectar el USB-C, desenchufar la fuente de la Jetson, volver a puentear J14, enchufar la fuente, sacar el jumper y **recién ahí** reconectar el USB-C directo a un puerto de la PC (sin hub). Confirmar con `lsusb \| grep -i nvidia` antes de reintentar. Ver [`05_instalacion_en_ssd_nvme.md#62`](../guia_de_iniciacion/05_instalacion_en_ssd_nvme.md#62-jetson-device-is-not-ready-for-flash-usb). |
+| El flasheo a SSD falla o se cuelga en la etapa que usa NFS | El firewall (`ufw`) de la PC anfitriona bloquea el tráfico NFS que usa SDK Manager para escribir en un disco externo (el SSD). | `sudo ufw disable` antes de flashear, `sudo ufw enable` apenas termina (no dejarlo desactivado). Ver [`05_instalacion_en_ssd_nvme.md#63`](../guia_de_iniciacion/05_instalacion_en_ssd_nvme.md#63-ufw-bloqueando-nfs). |
+| SDK Manager, con Ubuntu 24.04 en la PC anfitriona, no deja avanzar la instalación de *Host* para JetPack 6.2.x | La instalación de componentes de *host* de JetPack 6.2.x no está soportada sobre Ubuntu 24.04. | Usar el link **"Deselect Host"** que ofrece la propia pantalla y dejar solo **Target install** — es lo único que hace falta para flashear la Jetson. Ver [`05_instalacion_en_ssd_nvme.md#5`](../guia_de_iniciacion/05_instalacion_en_ssd_nvme.md#5-configurar-y-correr-el-flasheo-en-sdk-manager). |
+| Durante *"Install SDK components"*, falla la verificación de internet: `wget: unable to resolve host address 'www.nvidia.com'` | La Jetson sí tenía conectividad real por IP (`ping 8.8.8.8` funcionaba, había ruta por defecto) pero el DNS que entrega la red de la facultad (`frm-intranet23` vía DHCP) no resuelve dominios públicos, solo internos. | Fijar un DNS público a mano en la interfaz: `sudo nmcli connection modify "Wired connection 1" ipv4.dns "8.8.8.8 1.1.1.1"`, `ipv4.ignore-auto-dns yes`, `connection up`. Ver [`05_instalacion_en_ssd_nvme.md#64`](../guia_de_iniciacion/05_instalacion_en_ssd_nvme.md#64-falla-de-dns-al-verificar-conectividad-paso-install-sdk-components). |
+| BalenaEtcher descargado no aparece como `.AppImage` — `chmod +x balenaEtcher-*.AppImage` da `No such file or directory` | El paquete descargado vino como una **carpeta** con el binario suelto adentro (`balenaEtcher-linux-x64/`), no como un único AppImage. | Entrar a la carpeta (`ls -la`) y buscar el ejecutable sin extensión (`balenaEtcher`); darle permiso con `chmod +x balenaEtcher` y correrlo con `./balenaEtcher` (agregar `--no-sandbox` si tira error de sandbox). Pasó en la PC anfitriona, no en la Jetson. |
+
+## Puesta a punto
+
+| Síntoma | Causa probable | Solución |
+|---|---|---|
+| `sudo pip3 install -U jetson-stats` da `sudo: pip3: command not found` | Esta imagen de JetPack no trae `pip3` instalado de fábrica. | `sudo apt update && sudo apt install -y python3-pip` antes de instalar `jetson-stats`. Ver [`06_puesta_a_punto.md#1-jtop`](../guia_de_iniciacion/06_puesta_a_punto.md#1-jtop). |
+| El swap por defecto (zram) no ayuda tanto como debería con 8GB de RAM compartidos | El swap de fábrica vive en **zram** (RAM comprimida, ~3.7GB): compite por la misma RAM que se supone que libera, en vez de ser espacio extra real. | Apagar el swap en zram (`sudo swapoff /dev/zram0..5`, `sudo systemctl disable --now nvzramconfig`) y crear un swapfile real de 8GB **en el SSD** (nunca en microSD, la destruye escribiendo sin parar). Ver [`06_puesta_a_punto.md#3-swap-en-el-ssd`](../guia_de_iniciacion/06_puesta_a_punto.md#3-swap-en-el-ssd). |
+
+## Cámara CSI
+
+| Síntoma | Causa probable | Solución |
+|---|---|---|
+| `v4l2-ctl: command not found` | El paquete `v4l-utils` no está instalado. | `sudo apt install -y v4l-utils`. Ver [`07_camara_csi.md#3`](../guia_de_iniciacion/07_camara_csi.md#3-verificar-que-el-sensor-aparece). |
+| Después de configurar el conector con `jetson-io.py` y reiniciar, `/dev/video*` no aparece | El `dmesg` mostraba `imx477_board_setup: error during i2c read probe (-121)` (*"Remote I/O error"*): el driver y el overlay estaban bien cargados, pero el sensor no respondía por I2C. Con `sudo i2cdetect -y -r 9`, la dirección `0x1a` no aparecía. **Causa física real:** uno de los dos extremos del flex de 22 pines había quedado insertado **al revés** — entraba igual porque coincide en cantidad de pines, pero sin contacto eléctrico correcto. No fue un problema de driver ni de overlay. | Con la placa apagada y desenchufada, sacar el flex y volver a insertarlo respetando la orientación de los contactos en las dos puntas. Confirmado el arreglo con `sudo i2cdetect -y -r 9` (apareció `UU` en `1a`, indicando que el driver ya lo estaba usando) y con `ls /dev/video* /dev/media*`. Ver [`07_camara_csi.md#31`](../guia_de_iniciacion/07_camara_csi.md#31-primer-intento-no-apareció-nada--diagnóstico). |
+| `gst-launch-1.0` falla con `no element "nvv4l2h264enc"` al armar un pipeline de video en vivo | La Jetson Orin Nano **no tiene NVENC** (encoder de video por hardware) — a diferencia de Orin NX/AGX, es una limitación real del chip para abaratarlo. No es un paquete que falta instalar. | Codificar por software con `x264enc speed-preset=ultrafast tune=zerolatency` en vez de `nvv4l2h264enc`. Rinde bien en los 6 núcleos de la Orin Nano. Ver [`07_camara_csi.md#52`](../guia_de_iniciacion/07_camara_csi.md#52-segundo-obstáculo-la-orin-nano-no-tiene-codificador-de-video-por-hardware). |
+| El pipeline de video en vivo por software falla porque faltan elementos de GStreamer (`h264parse` en la Jetson, `avdec_h264` en la PC) | `h264parse` vive en el paquete `gstreamer1.0-plugins-bad`; `avdec_h264` vive en `gstreamer1.0-libav`. Ninguno de los dos venía instalado. | En la Jetson: `sudo apt install -y gstreamer1.0-plugins-bad`. En la PC: `sudo apt install -y gstreamer1.0-libav`. Ver [`07_camara_csi.md#52`](../guia_de_iniciacion/07_camara_csi.md#52-segundo-obstáculo-la-orin-nano-no-tiene-codificador-de-video-por-hardware). |
+| `gst-launch-1.0`: `ERROR: pipeline could not be constructed: empty pipeline not allowed` | Se dejó el placeholder literal `<ip_de_la_jetson>` en el comando en vez de reemplazarlo por una IP real — Bash interpretó `<` como redirección de entrada desde un archivo llamado `ip_de_la_jetson`, no como parte del pipeline. | Reemplazar siempre `<...>` por el valor real antes de correr el comando; nunca dejar los símbolos `<` `>` literales en la terminal. |
+
+## Red
+
+| Síntoma | Causa probable | Solución |
+|---|---|---|
+| `ssh indea@ubuntu.local` da `Could not resolve hostname`, aunque `avahi-daemon` está corriendo bien en los dos lados | En la red de la facultad, la Jetson por **Ethernet** y la PC por **WiFi** quedan en **subredes/VLANs separadas**, y el multicast que usa mDNS no cruza entre subredes salvo que haya un "reflector" configurado — algo fuera de nuestro control. | Usar la **IP directa** con `ssh indea@<ip>` (el tráfico unicast sí cruza sin problema). Anotar la IP con `hostname -I` antes de apagar la placa — el DHCP suele repetirla para el mismo equipo. Ver [`06_puesta_a_punto.md#01`](../guia_de_iniciacion/06_puesta_a_punto.md#01-reconectarse-sin-monitor-sin-buscar-la-ip-de-nuevo). |
+| Una prueba de conectividad con `nc -u` no llega, incluso probando desde una segunda PC en el mismo segmento Ethernet que la Jetson | No era un problema de red/subredes (eso ya se había descartado). La causa real: el firewall (`ufw`) de la **PC receptora** tiene política *"deny incoming"* por defecto y solo dejaba pasar el puerto usado por VNC. | `sudo ufw allow <puerto>/udp` en la PC que recibe. Ver [`07_camara_csi.md#51`](../guia_de_iniciacion/07_camara_csi.md#51-primer-obstáculo-no-llegaba-nada--pero-no-era-la-red). No confundir con el problema de mDNS de la fila anterior — son dos causas distintas (multicast vs. firewall). |
+
+## Contenedores / inferencia
+
+| Síntoma | Causa probable | Solución |
+|---|---|---|
+| `docker/run.sh` (para `jetson-inference`) falla con `Unable to find image 'dustynv/jetson-inference:r36.5.2' locally` / `docker: Error response from daemon: ... not found` | El script arma el tag del contenedor a partir de la versión exacta de L4T detectada (`r36.5.2`), pero NVIDIA/el mantenedor de `jetson-inference` no publica un tag para cada versión menor — en este caso solo había tags hasta `r36.3.0`. | Forzar un tag publicado dentro de la misma rama `r36.x` (compatibles entre sí dentro de la misma versión mayor de L4T): `docker/run.sh --container dustynv/jetson-inference:r36.3.0`. Confirmado que la descarga (~7GB) arranca sin error con ese tag. **Nota:** esto surgió trabajando en el ejemplo de inferencia (documento `08`, todavía no cerrado) — si `08_primer_ejemplo_de_inferencia.md` termina confirmando otro tag como el bueno, esa fuente gana sobre esta fila. |
