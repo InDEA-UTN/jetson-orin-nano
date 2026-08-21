@@ -15,7 +15,7 @@ carpeta, numerado para que el orden de lectura sea evidente.
 | 05 | [`05_instalacion_en_ssd_nvme.md`](05_instalacion_en_ssd_nvme.md) | Montar el SSD M.2, poner la placa en modo *force recovery* y flashear a NVMe desde la PC anfitriona con SDK Manager. Dual boot con la microSD y cómo elegir entre las dos con F11. | **Verificado en la placa** — arranca desde el SSD |
 | 06 | [`06_puesta_a_punto.md`](06_puesta_a_punto.md) | Lo que conviene dejar hecho una sola vez: `jtop`, modo de energía, swap, Docker, verificación de CUDA y de la versión instalada. | **Verificado en la placa** — corriendo desde el SSD |
 | 07 | [`07_camara_csi.md`](07_camara_csi.md) | Conectar la cámara al conector CSI, configurar el conector, verificar que el sensor aparece y hacer la primera captura y la primera vista en vivo. | **Verificado en la placa** — captura y vista en vivo por red listas (ArduCam UC-517 / IMX477); control PTZ pendiente |
-| 08 | `08_primer_ejemplo_de_inferencia.md` | Un primer ejemplo de punta a punta: clasificar o detectar sobre el video de la cámara, y entender qué hizo cada parte. | Pendiente |
+| 08 | [`08_primer_ejemplo_de_inferencia.md`](08_primer_ejemplo_de_inferencia.md) | Un primer ejemplo de punta a punta: clasificar o detectar sobre el video de la cámara, y entender qué hizo cada parte. | **Verificado en la placa** — clasificación sobre imagen fija; inferencia en vivo pendiente |
 
 La numeración puede ajustarse a medida que se escribe; lo que importa es que el orden de lectura
 quede claro y que cada documento diga con qué hay que seguir.
