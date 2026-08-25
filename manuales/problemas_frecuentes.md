@@ -5,7 +5,7 @@ pasaron en esta placa (o en la PC anfitriona usada para flashearla) y que ya se 
 fila está rastreada a un documento de [`../guia_de_iniciacion/`](../guia_de_iniciacion/) o a una
 sesión de trabajo real — no hay nada hipotético acá.
 
-Escrito el **2026-08-13**, contra JetPack 6.2.3 / L4T 36.5, módulo P3767-0005 Developer Kit, SSD
+Escrito el **2026-08-13**, contra JetPack 6.2.3 / L4T 36.5.2, módulo P3767-0005 Developer Kit, SSD
 NVMe, usuario `indea`, cámara ArduCam UC-517 (IMX477).
 
 ## Flasheo e instalación (SDK Manager)

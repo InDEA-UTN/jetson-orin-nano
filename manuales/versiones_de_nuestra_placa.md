@@ -5,7 +5,8 @@ versión corre?" sin ir a buscarlo en la guía narrativa. El detalle de cómo se
 y las trampas encontradas en el camino están en
 [`../guia_de_iniciacion/`](../guia_de_iniciacion/), enlazada en cada fila.
 
-**Escrito el 2026-08-20**, contra el estado real de la placa a esa fecha.
+**Escrito el 2026-08-20**, contra el estado real de la placa a esa fecha. **Última actualización:
+2026-08-21.**
 
 ## Estado actual
 
@@ -36,6 +37,8 @@ y las trampas encontradas en el camino están en
 | 2026-08-06 | SSD flasheado con **SDK Manager** (JetPack 6.2.3). El firmware subió de `36.4.3` a `36.5.2` en la misma operación. La placa pasa a arrancar por defecto desde el SSD. | [`05_instalacion_en_ssd_nvme.md`](../guia_de_iniciacion/05_instalacion_en_ssd_nvme.md) |
 | 2026-08-11 | Puesta a punto sobre el SSD: `jtop` 7.2.1, modo MAXN SUPER, swapfile de 8GB (reemplazando zram), Docker con runtime `nvidia`, `cuda-nvcc-12-6`. Cámara ArduCam UC-517 (IMX477) configurada en CAM1: captura fija y vista en vivo por streaming UDP/RTP verificadas. | [`06_puesta_a_punto.md`](../guia_de_iniciacion/06_puesta_a_punto.md), [`07_camara_csi.md`](../guia_de_iniciacion/07_camara_csi.md) |
 | 2026-08-20 | Primer ejemplo de inferencia verificado: contenedor `dustynv/jetson-inference:r36.3.0` (el tag exacto `r36.5.2` no existe publicado), TensorRT, clasificación con GoogLeNet sobre imagen fija. | [`08_primer_ejemplo_de_inferencia.md`](../guia_de_iniciacion/08_primer_ejemplo_de_inferencia.md) |
+| 2026-08-20 | Inferencia **en vivo** sobre la cámara, transmitida por RTP a la PC: clasificación (GoogLeNet) y detección (SSD-Mobilenet-v2), con tiempos medidos en 15W y en MAXN SUPER. Sin cambios de configuración en la placa. | [`01_hello_ai_world.md`](../tutoriales/01_hello_ai_world.md), [`02_deteccion_de_objetos.md`](../tutoriales/02_deteccion_de_objetos.md) |
+| 2026-08-21 | Primer entorno virtual de Python en la placa, para el proyecto del espejo facial: `python3.10-venv` y `python3-opencv` del sistema instalados por `apt`; venv creado con `--system-site-packages` (es el único OpenCV compilado con GStreamer, necesario para leer la cámara CSI desde Python). | [`lado_jetson.md`](../proyectos/espejo_facial_led/lado_jetson.md) |
 
 ## Pendiente de completar acá
 

@@ -5,8 +5,8 @@ GPU de la Jetson, entendiendo qué hace cada parte del camino.
 
 > **Estado.** Verificado en la placa el **2026-08-20**: clasificación sobre una imagen fija
 > funcionando de punta a punta (contenedor + TensorRT + GoogLeNet). La inferencia en vivo sobre el
-> video de la cámara queda para "Qué queda pendiente" — en esta sesión se probó solo con imagen
-> fija.
+> video de la cámara no entró en esta sesión —se probó solo con imagen fija— y se resolvió después,
+> en [`../tutoriales/01_hello_ai_world.md`](../tutoriales/01_hello_ai_world.md).
 
 **Antes hay que haber hecho** [`06_puesta_a_punto.md`](06_puesta_a_punto.md) (Docker con el
 runtime `nvidia` activo, §4 de ese documento) y [`07_camara_csi.md`](07_camara_csi.md) — aunque
@@ -129,15 +129,19 @@ scp indea@<ip_de_la_jetson>:~/primerainferencia/jetson-inference/data/images/out
 
 ## Qué queda pendiente
 
-- **Inferencia en vivo sobre la cámara**: correr `imagenet.py` o `detectnet.py` apuntando a
-  `csi://0` en vez de un archivo, para clasificar/detectar en tiempo real sobre lo que ve la
-  ArduCam. No se probó en esta sesión, solo con imagen fija.
+- **Inferencia en vivo sobre la cámara** — **ya resuelto**, pero fuera de este documento: correr
+  `imagenet.py` o `detectnet.py` apuntando a `csi://0` en vez de a un archivo, y mandar la salida
+  por RTP a la PC. Está en [`../tutoriales/01_hello_ai_world.md`](../tutoriales/01_hello_ai_world.md)
+  (clasificación) y [`../tutoriales/02_deteccion_de_objetos.md`](../tutoriales/02_deteccion_de_objetos.md)
+  (detección, con tiempos medidos por modo de energía).
 - **Control PTZ** de la ArduCam (pan/tilt/zoom): sigue pendiente desde
   [`07_camara_csi.md`](07_camara_csi.md).
 
 ## Con qué seguir
 
 Acá termina el recorrido de esta guía de arranque inicial (00 a 08): la placa está instalada,
-configurada, con la cámara funcionando y un primer ejemplo de IA corriendo de punta a punta. Lo
-que sigue — inferencia en vivo, PTZ, entrenar modelos propios — ya es trabajo de proyecto sobre
-esta base, no de iniciación.
+configurada, con la cámara funcionando y un primer ejemplo de IA corriendo de punta a punta.
+
+Lo que sigue ya no es iniciación. El paso natural son los
+[`../tutoriales/`](../tutoriales/), que retoman esto mismo sobre el video en vivo de la cámara; y
+después, el PTZ y entrenar modelos propios, que son trabajo de proyecto sobre esta base.

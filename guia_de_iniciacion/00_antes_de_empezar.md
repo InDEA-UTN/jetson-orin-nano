@@ -98,6 +98,9 @@ página de descargas antes de bajar nada.
 - **JetPack 6.2.2** = Jetson Linux 36.5, Ubuntu 22.04, kernel 5.15. Es la línea madura para Orin y
   la que elegimos. Ojo: **NVIDIA no publica imagen de microSD de 6.2.2** — se instala **6.2.1** y se
   sube a 6.2.2 con `apt`, que es legítimo porque no cambia la versión mayor (ver §3.6).
+  *(Actualización: al flashear el SSD con SDK Manager, en agosto, la placa quedó en **JetPack 6.2.3
+  = Jetson Linux 36.5.2**, que es la misma línea 6.2.x. El estado vigente está siempre en
+  [`../manuales/versiones_de_nuestra_placa.md`](../manuales/versiones_de_nuestra_placa.md).)*
 - **JetPack 7.2** = Jetson Linux 39.2, Ubuntu 24.04. Ya alcanza a la familia Orin, pero **exige
   firmware de generación 36.x igual**, así que no ahorra ningún paso, y el material de tutoriales
   todavía está migrando.
@@ -191,7 +194,9 @@ eso rápido. Dos medidas que se hacen una vez y ayudan siempre:
 
 - **Tener swap en el SSD**, y **solo** en el SSD. En la microSD **no**: el swap la escribe sin parar
   y la destruye en poco tiempo. Mientras no haya SSD, la medida realista es la anterior — trabajar
-  sin escritorio gráfico. Ayuda sobre todo al compilar y al cargar modelos grandes.
+  sin escritorio gráfico. Ayuda sobre todo al compilar y al cargar modelos grandes. En esta placa ya
+  está hecho: swapfile de 8GB en el SSD (§3 de
+  [`06_puesta_a_punto.md`](06_puesta_a_punto.md)).
 
 Este es, además, el argumento principal para instalar en SSD y no en microSD.
 
@@ -267,12 +272,14 @@ documento.
    §3.3).
 2. Identificar el modelo de la cámara y su flex (§3.4).
 3. Ver la versión de firmware de la placa y decidir la versión de JetPack objetivo (§3.1).
-4. Instalación en microSD con SDK Manager, que **actualiza el firmware en la misma operación**.
-   Sirve además para confirmar que la placa, la fuente y el monitor están sanos antes de complicar.
+4. Instalación en microSD. Si el firmware ya es de generación 36.x, alcanza con grabar la tarjeta
+   con Balena Etcher —que es lo que pasó acá—; si es más viejo, va por SDK Manager, que
+   **actualiza el firmware en la misma operación**. Sirve además para confirmar que la placa, la
+   fuente y el monitor están sanos antes de complicar.
 5. Puesta a punto: `jtop`, modo de energía, Docker, verificación de CUDA.
 6. Cámara y primer ejemplo de inferencia.
-7. Instalación en SSD NVMe cuando esté el disco: el mismo procedimiento del punto 4 cambiando el
-   destino. Recién ahí, swap.
+7. Instalación en SSD NVMe cuando esté el disco: SDK Manager, con la placa en *force recovery*.
+   Recién ahí, swap.
 
 Sin PC anfitriona el orden es otro: el puente por JetPack 5.1.3 (§3.1) va antes del punto 4, y la
 instalación en SSD no es posible hasta conseguirla.

@@ -9,10 +9,9 @@ ver "Próximos pasos" al final.
 > llegó todavía la matriz LED.
 
 **Antes hay que haber hecho:** la puesta a punto de la placa (Docker con runtime `nvidia`) y la
-cámara CSI conectada y funcionando — documentado en `06_puesta_a_punto.md` y `07_camara_csi.md` de
-`guia_de_iniciacion/`. **Aviso:** esos documentos viven en la rama `arranque-inicial`, todavía sin
-mergear a `main` en el momento de escribir esto — no son links vivos en esta rama, se los nombra
-por su contenido.
+cámara CSI conectada y funcionando — documentado en
+[`06_puesta_a_punto.md`](../../guia_de_iniciacion/06_puesta_a_punto.md) y
+[`07_camara_csi.md`](../../guia_de_iniciacion/07_camara_csi.md) de la guía de iniciación.
 
 ---
 
@@ -307,5 +306,3 @@ dibujando el texto del estado sobre la imagen):
    relativo al centro (hoy el MAR sólo distingue abierta/cerrada).
 4. **Cuando llegue la matriz LED:** Fase 6 del README — protocolo UDP de 8 bytes (uno por fila de
    la matriz) entre la Jetson y la Pico W.
-5. **Abrir el PR** de esta rama (`proyecto-tutoriales`) una vez que este documento y las imágenes
-   estén cargados.

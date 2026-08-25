@@ -76,9 +76,10 @@ gst-launch-1.0 -v udpsrc port=1234 \
 Se abre una ventana en la PC con el video en vivo de la cámara, con la clase y el porcentaje de
 confianza dibujados encima de cada cuadro, actualizándose en tiempo real.
 
-**Foto:** [`imagenes/01_clasificacion_en_vivo.jpg`](imagenes/01_clasificacion_en_vivo.jpg) —
-captura de la ventana de video mostrando el porcentaje de confianza al apuntar la cámara a un
-teclado.
+![Ventana de video en la PC con la clasificación en vivo sobre un teclado](imagenes/01_clasificacion_en_vivo.jpg)
+
+*La ventana de video en la PC, con la clase y el porcentaje de confianza al apuntar la cámara a un
+teclado.*
 
 ## Verificación final
 

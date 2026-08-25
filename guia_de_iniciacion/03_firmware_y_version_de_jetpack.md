@@ -5,9 +5,10 @@ firmware vive en la **QSPI del módulo**, no en la tarjeta, y tiene que ser comp
 que se quiera arrancar. Acá se registra qué firmware traía *nuestra* placa, qué versión de JetPack
 elegimos y por qué, y cuál de los caminos de actualización usamos.
 
-> **Estado.** Procedimiento y decisión escritos a partir de la documentación oficial, en julio de
-> 2026, **antes** del primer arranque. Las salidas reales y la versión de firmware de fábrica se
-> completan al hacerlo.
+> **Estado.** **Verificado en la placa el 30/07/2026.** El procedimiento y la decisión de versión
+> se escribieron antes del primer arranque, a partir de la documentación oficial; la lectura del
+> firmware de fábrica (`36.4.3`) es real y está registrada en §1 y §4. Lo único que sigue abierto
+> son dos salidas de comando marcadas *(completar)* en §4.
 
 ## 1. Leer la versión de firmware de la placa
 
@@ -42,8 +43,9 @@ TXD en el pin 4 y GND en el pin 7.
 
 **Firmware de fábrica de nuestra placa: `36.4.3`**, leído en el menú UEFI el **30/07/2026**.
 
-**Foto:** [`imagenes/03_uefi.jpg`](imagenes/03_uefi.jpg) — pantalla del menú UEFI mostrando la
-versión de firmware.
+![Menú UEFI de la Jetson mostrando la versión de firmware 36.4.3](imagenes/03_uefi.jpg)
+
+*Pantalla del menú UEFI con la versión de firmware de fábrica.*
 
 Es decir: la placa vino con firmware de **generación JetPack 6** (concretamente el de JetPack 6.2,
 que es el release donde apareció el modo MAXN SUPER). **La trampa nº 1 no nos tocó.** No hay que
@@ -62,6 +64,10 @@ Cómo interpretarlo:
 ## 2. Qué versión de JetPack elegimos, y por qué
 
 **Decisión (julio 2026): la línea JetPack 6.2.x, apuntando a 6.2.2.**
+
+> **Cómo terminó.** La microSD quedó en 6.2.2, y el SSD —flasheado después con SDK Manager— quedó
+> en **6.2.3 (L4T 36.5.2)**, que es la misma línea 6.2.x y es lo que corre hoy. La decisión de
+> abajo no cambió; cambió el número de revisión disponible al momento de flashear.
 
 | | JetPack 6.2.2 | JetPack 7.2 |
 |---|---|---|
@@ -89,7 +95,9 @@ saltar de JetPack 5.x a 6.x por `apt`; moverse dentro de la misma versión mayor
 
 > **En nuestro caso no hizo falta ninguno.** El firmware era `36.4.3`, o sea ya de generación 6.
 > Quedan documentados porque son el caso más común en placas de fábrica más viejas, y porque el
-> camino A es igual el que vamos a usar cuando llegue el SSD NVMe.
+> camino A es el que se terminó usando igual para instalar en el SSD NVMe — donde SDK Manager es
+> obligatorio, y donde de paso subió el firmware a `36.5.2`
+> ([`05_instalacion_en_ssd_nvme.md`](05_instalacion_en_ssd_nvme.md)).
 
 ### Camino A — SDK Manager
 
@@ -136,7 +144,8 @@ Son dos descargas grandes, tres reinicios y dos esperas a ciegas. Con SDK Manage
 - **Firmware de fábrica leído en UEFI:** `36.4.3` (= JetPack 6.2)
 - **¿Hizo falta actualizar firmware?** **No.** Ya era generación 36.x.
 - **Camino de instalación elegido:** grabado directo de la imagen de microSD con Balena Etcher.
-  SDK Manager queda para la instalación en SSD NVMe.
+  SDK Manager se usó después para la instalación en SSD NVMe (06/08/2026), y en esa misma
+  operación el firmware pasó de `36.4.3` a `36.5.2`.
 - Versión de JetPack instalada, verificada con `apt-cache policy nvidia-jetpack`: *(completar)*
 - Salida de `cat /etc/nv_tegra_release`: *(completar)*
 
@@ -144,9 +153,10 @@ Son dos descargas grandes, tres reinicios y dos esperas a ciegas. Con SDK Manage
 
 | JetPack | Jetson Linux (L4T) |
 |---------|--------------------|
-| 6.2 | 36.4.3 ← **el firmware de nuestra placa** |
-| 6.2.1 | 36.4.x (es la última con **imagen de microSD publicada**) |
-| 6.2.2 | 36.5 (se llega por `apt`, no hay imagen) |
+| 6.2 | 36.4.3 ← **el firmware de fábrica de nuestra placa** |
+| 6.2.1 | 36.4.4 (es la última con **imagen de microSD publicada**) |
+| 6.2.2 | 36.5 (se llega por `apt`, no hay imagen) — quedó así la microSD |
+| 6.2.3 | 36.5.2 — lo que instaló SDK Manager en el SSD, y el firmware que corre hoy |
 
 ## Fuentes
 

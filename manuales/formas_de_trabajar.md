@@ -72,8 +72,22 @@ funcionan.
 
 ### Entorno virtual de Python
 
-**Pendiente.** No se creó ningún entorno virtual todavía — hasta ahora, lo poco de Python que se
-usó (`jtop`, que se instala con `pip3`) fue directo sobre el sistema.
+**Probado.** Es el camino usado para MediaPipe + OpenCV en el proyecto del espejo facial. Dos
+detalles que costaron y conviene no volver a descubrir: hace falta `sudo apt install
+python3.10-venv`, y si el código necesita que OpenCV lea la cámara CSI hay que usar el
+`python3-opencv` **del sistema** (el único compilado con GStreamer) creando el venv con
+`--system-site-packages`:
+
+```bash
+sudo apt install python3.10-venv python3-opencv
+python3 -m venv --system-site-packages ~/mi_entorno
+source ~/mi_entorno/bin/activate
+```
+
+La cadena completa de trampas (el `opencv-contrib-python` que se cuela como dependencia y tapa al
+del sistema, y el choque de `numpy` 2.x con el `matplotlib` del sistema) está documentada en
+[`../proyectos/espejo_facial_led/lado_jetson.md`](../proyectos/espejo_facial_led/lado_jetson.md).
+Para lo que necesita CUDA/TensorRT, en cambio, el camino sigue siendo el contenedor.
 
 ### Contenedores de NVIDIA (`jetson-containers` / imágenes `dustynv/*`)
 

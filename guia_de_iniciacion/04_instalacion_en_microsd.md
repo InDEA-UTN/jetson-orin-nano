@@ -3,8 +3,13 @@
 Dejar la placa arrancando desde microSD con JetPack 6.2.x. Al terminar, la placa arranca sola, tiene
 CUDA y está lista para la puesta a punto.
 
-> **Estado.** Procedimiento escrito a partir de la documentación oficial, **pendiente de ejecutar en
-> la placa**. Cada bloque marcado *(completar)* se llena con la salida real al hacerlo.
+> **Estado.** **Ejecutado en la placa** por el camino A (Balena Etcher): la microSD quedó grabada
+> con JetPack 6.2.1 y subida a 6.2.2 con `apt`, y es desde ahí que arrancó la placa hasta que se
+> instaló el SSD ([`05_instalacion_en_ssd_nvme.md`](05_instalacion_en_ssd_nvme.md); resumen del
+> estado en [`../manuales/versiones_de_nuestra_placa.md`](../manuales/versiones_de_nuestra_placa.md)).
+> **Lo que falta es documental:** los bloques marcados *(completar)* siguen sin la salida real, y
+> hay que anotar la fecha exacta del grabado. Fue lo primero que se hizo y lo único que quedó sin
+> registrar mientras se hacía.
 
 **Antes hay que haber hecho [`03_firmware_y_version_de_jetpack.md`](03_firmware_y_version_de_jetpack.md)**,
 porque la versión de firmware decide cuál de los dos caminos de acá abajo corresponde.
@@ -86,8 +91,9 @@ Dentro del programa:
 3. Enchufar la fuente de 19 V. **La placa enciende sola: no hay botón.**
 4. Completar la configuración de Ubuntu: usuario, contraseña, idioma, zona horaria, teclado, red.
 
-**Foto:** [`imagenes/04_boot_inicial.jpg`](imagenes/04_boot_inicial.jpg) — pantalla del primer
-arranque de Ubuntu en la Jetson.
+![Primer arranque de Ubuntu en la Jetson, desde la microSD](imagenes/04_boot_inicial.jpg)
+
+*Pantalla del primer arranque de Ubuntu en la Jetson.*
 
 Registrar el estado de partida con el script del repositorio, que junta todo de una sola vez:
 
@@ -97,8 +103,9 @@ bash ejemplos/verificar_entorno.sh | tee estado_$(date +%F)_recien_instalada.txt
 
 *(completar: pegar la salida entera)*
 
-**Foto:** [`imagenes/04_arbol_procesos.jpg`](imagenes/04_arbol_procesos.jpg) — árbol de procesos
-al bootear.
+![Árbol de procesos de la Jetson recién arrancada](imagenes/04_arbol_procesos.jpg)
+
+*Árbol de procesos al bootear.*
 
 Lo que hay que ver en esa salida:
 
