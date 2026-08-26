@@ -8,7 +8,7 @@ pensados para leerse de corrido.
 
 | Manual | Contenido | Estado |
 |--------|-----------|--------|
-| [`formas_de_trabajar.md`](formas_de_trabajar.md) | **La guía de uso.** Las distintas maneras de trabajar con la placa y cuándo conviene cada una, con un ejemplo mínimo de cada una. Ver el detalle abajo. | Escrito — SSH, nativo y contenedores probados; VS Code Remote-SSH, Jupyter, consola serie, venv y contenedor propio pendientes |
+| [`formas_de_trabajar.md`](formas_de_trabajar.md) | **La guía de uso.** Las distintas maneras de trabajar con la placa y cuándo conviene cada una, con un ejemplo mínimo de cada una. Ver el detalle abajo. | Escrito — SSH, nativo, contenedores y venv probados; VS Code Remote-SSH, Jupyter, consola serie y contenedor propio pendientes |
 | [`versiones_de_nuestra_placa.md`](versiones_de_nuestra_placa.md) | Qué tiene instalado *esta* placa: JetPack, L4T, firmware, medio de arranque, tamaño del SSD, modelo de cámara. Con fecha e historial de cambios. | Escrito |
 | [`comandos_utiles.md`](comandos_utiles.md) | Los comandos que se usan todo el tiempo, agrupados por tarea: monitoreo, energía, cámara, red, contenedores, espacio en disco. | Escrito |
 | [`camara_referencia.md`](camara_referencia.md) | Referencia de la cámara: modelo de sensor, resoluciones y fps disponibles, tuberías de GStreamer que funcionan, cómo se elige el sensor en el conector CSI. | Escrito — control PTZ pendiente |

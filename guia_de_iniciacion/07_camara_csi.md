@@ -34,9 +34,10 @@ flex con la placa alimentada, el conector CSI no es *hot-plug*):
    ArduCam).
 3. Cerrar las dos trabas.
 
-**Foto:** [`imagenes/07_conexion_csi.jpg`](imagenes/07_conexion_csi.jpg) — *(pendiente: agregar
-foto del cable conectado entre la Jetson y la ArduCam, mostrando el conector CAM1 y la
-orientación del flex)*.
+![Flex de 22 pines conectado entre el conector CAM1 de la Jetson y la ArduCam UC-517](imagenes/07_conexion_csi.jpg)
+
+*El cable derecho de 22 a 22 pines, conectado en CAM1. La orientación de los contactos es la que
+importa: ver §3.1, donde justamente estaba al revés la primera vez.*
 
 ## 2. Configurar el conector (`jetson-io.py`)
 
@@ -154,12 +155,6 @@ gst-launch-1.0 nvarguscamerasrc num-buffers=1 sensor-id=0 ! \
   filesink location=~/primera_captura.jpg
 ```
 
-```bash
-gst-launch-1.0 nvarguscamerasrc num-buffers=1 sensor-id=0 ! \
-  'video/x-raw(memory:NVMM),width=3840,height=2160' ! nvjpegenc ! \
-  filesink location=~/primera_captura.jpg
-```
-
 Argus reportó los modos de sensor disponibles para este IMX477:
 
 ```
@@ -218,7 +213,7 @@ El primer intento de pipeline usaba `nvv4l2h264enc` (el encoder H.264 acelerado 
 trae la Jetson) y falló con `no element "nvv4l2h264enc"`. No es un paquete que faltó instalar:
 **la Jetson Orin Nano no tiene el motor NVENC** (el bloque de silicio dedicado a codificar
 video) — es una limitación real del chip, para abaratarlo frente a los modelos Orin NX/AGX, que
-sí lo tienen. Si tiene, en cambio, el decodificador (`nvv4l2decoder` — por eso aparece en
+sí lo tienen. Sí tiene, en cambio, el decodificador (`nvv4l2decoder` — por eso aparece en
 `gst-inspect-1.0`, y por eso se pudo usar sin problema para leer video ya codificado).
 
 La alternativa que recomienda la documentación oficial de NVIDIA es codificar **por software**,

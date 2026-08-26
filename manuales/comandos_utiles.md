@@ -5,7 +5,7 @@ copiar y pegar sin tener que releer la guía narrativa. No explican teoría — 
 [`../guia_de_iniciacion/`](../guia_de_iniciacion/), enlazada donde hace falta más contexto.
 
 Escrito el **2026-08-13**, contra el estado real de la placa: módulo **P3767-0005 Developer Kit**,
-**JetPack 6.2.3 / L4T 36.5**, arrancando desde **SSD M.2 NVMe 250GB**, usuario del sistema
+**JetPack 6.2.3 / L4T 36.5.2**, arrancando desde **SSD M.2 NVMe 250GB**, usuario del sistema
 **`indea`**, cámara **ArduCam UC-517 (sensor IMX477)** en el conector **CAM1**.
 
 ## Monitoreo

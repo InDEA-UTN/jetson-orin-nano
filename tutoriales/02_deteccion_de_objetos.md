@@ -55,8 +55,9 @@ gst-launch-1.0 -v udpsrc port=1234 \
 84%** según el cuadro, `ClassID 1` (`person` en COCO), con el recuadro dibujado y actualizándose
 en vivo cuadro a cuadro.
 
-**Foto:** [`imagenes/02_deteccion_en_vivo.jpg`](imagenes/02_deteccion_en_vivo.jpg) — captura de la
-ventana de video con el recuadro y la etiqueta de persona detectada.
+![Ventana de video con el recuadro y la etiqueta de una persona detectada](imagenes/02_deteccion_en_vivo.jpg)
+
+*Recuadro y etiqueta de persona detectada, actualizándose cuadro a cuadro.*
 
 ### 3. Comparar rendimiento entre modos de energía
 
@@ -109,5 +110,6 @@ contenedor)*.
 
 ## Con qué seguir
 
-[`03_entrenar_con_datos_propios.md`](03_entrenar_con_datos_propios.md): reentrenar un clasificador
-con imágenes propias (*transfer learning*) y correrlo en la placa.
+`03_entrenar_con_datos_propios.md` (todavía sin escribir, ver el índice de
+[`tutoriales/`](README.md)): reentrenar un clasificador con imágenes propias (*transfer learning*)
+y correrlo en la placa.
