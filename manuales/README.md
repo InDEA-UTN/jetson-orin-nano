@@ -8,11 +8,11 @@ pensados para leerse de corrido.
 
 | Manual | Contenido | Estado |
 |--------|-----------|--------|
-| `formas_de_trabajar.md` | **La guía de uso.** Las distintas maneras de trabajar con la placa y cuándo conviene cada una, con un ejemplo mínimo de cada una. Ver el detalle abajo. | Pendiente |
-| `versiones_de_nuestra_placa.md` | Qué tiene instalado *esta* placa: JetPack, L4T, firmware, medio de arranque, tamaño del SSD, modelo de cámara. Con fecha e historial de cambios. | Pendiente |
-| `comandos_utiles.md` | Los comandos que se usan todo el tiempo, agrupados por tarea: monitoreo, energía, cámara, red, contenedores, espacio en disco. | Pendiente |
-| `camara_referencia.md` | Referencia de la cámara: modelo de sensor, resoluciones y fps disponibles, tuberías de GStreamer que funcionan, cómo se elige el sensor en el conector CSI. | Pendiente |
-| `problemas_frecuentes.md` | Tabla de síntoma → causa probable → solución, alimentada con los problemas reales que nos fueron pasando. | Pendiente |
+| [`formas_de_trabajar.md`](formas_de_trabajar.md) | **La guía de uso.** Las distintas maneras de trabajar con la placa y cuándo conviene cada una, con un ejemplo mínimo de cada una. Ver el detalle abajo. | Escrito — SSH, nativo y contenedores probados; VS Code Remote-SSH, Jupyter, consola serie, venv y contenedor propio pendientes |
+| [`versiones_de_nuestra_placa.md`](versiones_de_nuestra_placa.md) | Qué tiene instalado *esta* placa: JetPack, L4T, firmware, medio de arranque, tamaño del SSD, modelo de cámara. Con fecha e historial de cambios. | Escrito |
+| [`comandos_utiles.md`](comandos_utiles.md) | Los comandos que se usan todo el tiempo, agrupados por tarea: monitoreo, energía, cámara, red, contenedores, espacio en disco. | Escrito |
+| [`camara_referencia.md`](camara_referencia.md) | Referencia de la cámara: modelo de sensor, resoluciones y fps disponibles, tuberías de GStreamer que funcionan, cómo se elige el sensor en el conector CSI. | Escrito — control PTZ pendiente |
+| [`problemas_frecuentes.md`](problemas_frecuentes.md) | Tabla de síntoma → causa probable → solución, alimentada con los problemas reales que nos fueron pasando. | Escrito — se irá sumando a medida que aparezcan problemas nuevos |
 | `reinstalar_desde_cero.md` | El procedimiento de reflasheo completo, para cuando algo quedó irrecuperable. Incluye qué respaldar antes. | Pendiente |
 
 ## El manual de formas de trabajar

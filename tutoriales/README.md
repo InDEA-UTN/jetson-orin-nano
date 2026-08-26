@@ -14,8 +14,8 @@ el original y es lo que le va a servir al próximo.
 
 | # | Tutorial | Qué resuelve | Base | Estado |
 |---|----------|--------------|------|--------|
-| 01 | `01_hello_ai_world.md` | Poner a andar el primer modelo: clasificar imágenes y después el video de la cámara en vivo. Es el "hola mundo" de la Jetson. | [`jetson-inference`](https://github.com/dusty-nv/jetson-inference) | Pendiente |
-| 02 | `02_deteccion_de_objetos.md` | Detección de objetos en vivo sobre la cámara, con cuadros y etiquetas. Medir los fps reales y compararlos entre modos de energía. | `jetson-inference` (`detectnet`) | Pendiente |
+| 01 | [`01_hello_ai_world.md`](01_hello_ai_world.md) | Poner a andar el primer modelo: clasificar imágenes y después el video de la cámara en vivo. Es el "hola mundo" de la Jetson. | [`jetson-inference`](https://github.com/dusty-nv/jetson-inference) | **Verificado en la placa** |
+| 02 | [`02_deteccion_de_objetos.md`](02_deteccion_de_objetos.md) | Detección de objetos en vivo sobre la cámara, con cuadros y etiquetas. Medir los fps reales y compararlos entre modos de energía. | `jetson-inference` (`detectnet`) | **Verificado en la placa** |
 | 03 | `03_entrenar_con_datos_propios.md` | Reentrenar un clasificador con imágenes nuestras (*transfer learning*) y correrlo en la placa. Primer ciclo completo de dato a modelo funcionando. | `jetson-inference` (PyTorch) | Pendiente |
 | 04 | `04_de_onnx_a_tensorrt.md` | Tomar un modelo propio, exportarlo a ONNX, optimizarlo con TensorRT y medir la diferencia de velocidad con y sin optimizar. | TensorRT | Pendiente |
 | 05 | `05_contenedores_en_la_jetson.md` | Usar `jetson-containers` para tener PyTorch y compañía sin romper el sistema: cómo se corre un contenedor con acceso a GPU y a la cámara. | [`jetson-containers`](https://github.com/dusty-nv/jetson-containers) | Pendiente |
