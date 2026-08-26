@@ -11,7 +11,7 @@ adentro.
 
 | Proyecto | Qué hace | Responsable | Estado |
 |----------|----------|-------------|--------|
-| [`espejo_facial_led/`](espejo_facial_led/) | Réplica de expresiones faciales en tiempo real sobre una matriz LED 8×8. La Jetson ve la cara con MediaPipe y manda un sprite de 8 bytes por UDP a un Pico W que maneja la matriz. | Lisandro Elmelaj | En curso — fase 0 |
+| [`espejo_facial_led/`](espejo_facial_led/) | Réplica de expresiones faciales en tiempo real sobre una matriz LED 8×8. La Jetson ve la cara con MediaPipe y manda un sprite de 8 bytes por UDP a un Pico W que maneja la matriz. | Lisandro Elmelaj | En curso — lado Jetson y lado Pico W andando por separado; falta la matriz MAX7219 |
 
 ## Qué debe tener un proyecto
 

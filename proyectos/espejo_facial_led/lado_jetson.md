@@ -5,8 +5,9 @@ calcular sus gestos y convertirlos en un sprite. El lado Pico W (matriz LED) tod
 ver "Próximos pasos" al final.
 
 > **Estado.** Verificado en la placa el **2026-08-21**: Fases 0, 3, 4 y 5 de las siete que define
-> el [`README.md`](README.md) del proyecto (sección 10). Fases 1 y 2 (Pico W) sin empezar — no
-> llegó todavía la matriz LED.
+> el [`README.md`](README.md) del proyecto (sección 10). Las fases 1 y 2 (Pico W) se hicieron después,
+> el 25/08, y están en [`lado_pico.md`](lado_pico.md) — validadas con el LED de a bordo, porque la
+> matriz MAX7219 todavía no llegó.
 
 **Antes hay que haber hecho:** la puesta a punto de la placa (Docker con runtime `nvidia`) y la
 cámara CSI conectada y funcionando — documentado en
@@ -296,13 +297,9 @@ dibujando el texto del estado sobre la imagen):
 
 ## 9. Próximos pasos
 
-1. **Fase 1-2 del lado Pico W, con LEDs sueltos como validación intermedia** (todavía no llegó la
-   matriz MAX7219): confirmar si la Pico W ya tiene MicroPython cargado o hay que flashearlo, y
-   definir la herramienta de desarrollo (se sugirió Thonny; PlatformIO es una alternativa más
-   pensada para C/C++ que para MicroPython).
-2. **Calibración real de los umbrales EAR/MAR**, idealmente probando con más de una persona — los
+1. **Calibración real de los umbrales EAR/MAR**, idealmente probando con más de una persona — los
    valores de arriba son válidos para esta sesión puntual, no un estándar.
-3. **Distinguir sonrisa de cara triste**, agregando el landmark de las comisuras de la boca
+2. **Distinguir sonrisa de cara triste**, agregando el landmark de las comisuras de la boca
    relativo al centro (hoy el MAR sólo distingue abierta/cerrada).
-4. **Cuando llegue la matriz LED:** Fase 6 del README — protocolo UDP de 8 bytes (uno por fila de
+3. **Cuando llegue la matriz LED:** Fase 6 del README — protocolo UDP de 8 bytes (uno por fila de
    la matriz) entre la Jetson y la Pico W.

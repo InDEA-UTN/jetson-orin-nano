@@ -5,7 +5,9 @@ Plataforma: NVIDIA Jetson Orin Nano + Raspberry Pi Pico W.
 
 - **Responsable:** Lisandro Elmelaj ([@lisandroelmelaj](https://github.com/lisandroelmelaj))
 - **Revisor:** Javier Velez ([@javovelez](https://github.com/javovelez))
-- **Estado:** En curso — fase 0
+- **Estado:** En curso — fases 0 y 3 a 5 del lado Jetson ([`lado_jetson.md`](lado_jetson.md)) y
+  fases 1-2 del lado Pico W validadas con el LED de a bordo ([`lado_pico.md`](lado_pico.md)).
+  Falta la matriz MAX7219 para cerrar las fases 1-2 de verdad
 - **Requisitos previos:** la placa andando con JetPack 6 y la cámara funcionando; ver la
   [guía de iniciación](../../guia_de_iniciacion/).
 
@@ -173,22 +175,36 @@ Pico hay que confirmar que sea la variante **W**; sin WiFi no sirve para este pr
 
 ## 6. Preparación del entorno
 
-En la Orin Nano con JetPack 6 (Ubuntu 22.04, Python 3.10):
+> **Corregido con lo que pasó de verdad.** Acá decía que alcanzaba con
+> `pip install mediapipe opencv-python`. No alcanza: el OpenCV de PyPI viene **sin soporte de
+> GStreamer**, y sin eso no puede leer la cámara CSI. El procedimiento real, con la cadena
+> completa de trampas, está en [`lado_jetson.md`](lado_jetson.md) §3 y §5.
+
+En la Orin Nano con JetPack 6 (Ubuntu 22.04, Python 3.10), en un entorno virtual creado con
+`--system-site-packages` para poder usar el OpenCV del sistema:
 
 ```bash
-pip install mediapipe opencv-python
+sudo apt install python3.10-venv python3-opencv
+python3 -m venv --system-site-packages ~/espejo_facial_venv
+source ~/espejo_facial_venv/bin/activate
+pip install mediapipe
+pip uninstall -y opencv-contrib-python opencv-python   # tapan al OpenCV del sistema
+pip install "numpy<2"                                   # el matplotlib del sistema no acepta 2.x
 ```
 
-Eso debería ser todo. MediaPipe publica wheels oficiales para aarch64 compatibles con Python 3.10,
-así que no hace falta compilar nada.
-
-**Verificar esto en los primeros 15 minutos del proyecto**, antes de comprar o soldar nada:
+**Verificar esto antes de comprar o soldar nada** — lo que importa no es solo que MediaPipe
+importe, sino que el OpenCV que se está usando sea el del sistema y tenga GStreamer:
 
 ```python
-import mediapipe as mp
-import cv2
-print(mp.__version__)   # si esto imprime una versión, el camino está despejado
+import cv2, mediapipe as mp
+print(cv2.__version__, cv2.__file__)                    # tiene que decir /usr/lib/python3/...
+print([l for l in cv2.getBuildInformation().split(chr(10)) if 'GStreamer' in l])
+print(mp.__version__)
 ```
+
+Ojo con la versión de MediaPipe: la API "clásica" (`mp.solutions.face_mesh`), que es la que
+aparece en casi todos los tutoriales de internet, **ya no existe**. Hay que usar la API Tasks y
+descargar el modelo `.task` aparte.
 
 *Plan B si algo falla:* usar **dlib** con su predictor de 68 puntos. Compila sin problemas y 68
 puntos son de sobra para una salida de 8×8 píxeles. No es un downgrade significativo para este
@@ -343,8 +359,22 @@ será la cámara.
 3. Video de 30 segundos mostrando el sistema funcionando.
 4. Diagrama de conexionado final.
 
-El código y la documentación van en esta misma carpeta. **El video no**: subilo al Drive del
-laboratorio y dejá acá el enlace, para no meter binarios pesados en el repositorio.
+El código y la documentación van en esta misma carpeta, con esta estructura:
+
+```
+proyectos/espejo_facial_led/
+  README.md          # esta especificación
+  lado_jetson.md     # lo hecho del lado Jetson, con sus trampas
+  lado_pico.md       # lo hecho del lado Pico W
+  jetson/            # código que corre en la Jetson (Python)
+    jetson_face.py
+  pico/              # código que corre en la Pico W (MicroPython)
+    main.py          # este nombre es obligatorio: MicroPython lo ejecuta solo al arrancar
+  imagenes/
+```
+
+**El video no**: subilo al Drive del laboratorio y dejá acá el enlace, para no meter binarios
+pesados en el repositorio.
 
 El seguimiento del trabajo (bitácora, horas, objetivos) no va acá, como en todo este repositorio:
 vive en el repositorio privado de gestión del laboratorio.
