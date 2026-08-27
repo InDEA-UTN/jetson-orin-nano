@@ -32,6 +32,9 @@ __pycache__/
 venv/
 .ipynb_checkpoints/
 
+# Credenciales de WiFi u otros datos sensibles de proyectos (ver *.example.py al lado)
+wifi_config.py
+
 # Sistema operativo y editores
 .DS_Store
 Thumbs.db
