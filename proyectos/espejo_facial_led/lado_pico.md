@@ -1,13 +1,18 @@
-# Lado Pico W — WiFi y LED
+# Lado Pico W — WiFi, LED y matriz MAX7219
 
 Primeros pasos del lado "cara" del proyecto: confirmar que la Pico W ya tiene MicroPython,
-prender un LED, y validar el camino completo por WiFi entre la Jetson y la Pico usando el LED de
-a bordo como reemplazo provisorio de la matriz MAX7219 (todavía no llegó). El lado Jetson
-(MediaPipe, sprites) está documentado en [`lado_jetson.md`](lado_jetson.md).
+prender un LED, validar el camino completo por WiFi entre la Jetson y la Pico usando el LED de a
+bordo como reemplazo provisorio de la matriz MAX7219, y — ya con la matriz real en mano — cablearla,
+instalar su driver y dibujar en ella. El lado Jetson (MediaPipe, sprites) está documentado en
+[`lado_jetson.md`](lado_jetson.md). El código de esta parte vive en [`pico/`](pico/), no en este
+`.md` — acá se documenta el procedimiento, no el código en sí.
 
-> **Estado.** Verificado el **2026-08-25**: Fase 1 simplificada (LED en vez de matriz) y Fase 2
-> completas — la Pico se conecta por WiFi, abre un socket UDP y prende/apaga el LED al recibir un
-> paquete desde la Jetson. Falta la matriz MAX7219 en sí (Fase 1-2 "de verdad") y definir IP fija.
+> **Estado.** Fase 1 simplificada (LED) y Fase 2 verificadas el **2026-08-25** — la Pico se conecta
+> por WiFi, abre un socket UDP y prende/apaga el LED al recibir un paquete desde la Jetson. La
+> matriz MAX7219 real llegó y se verificó el **2026-08-27**: cableada, con su driver instalado y
+> corregido (rotación), dibujando sprites propios de punta a punta — **todavía sin conectar al
+> WiFi/UDP** (`pico/main.py` sigue usando el LED de a bordo; falta unir ambas partes). Sigue
+> pendiente definir una IP fija para la Pico.
 
 **Herramienta usada:** [Thonny](https://thonny.org/), con la Pico W ya conectada por USB y
 detectada como intérprete **"MicroPython (Raspberry Pi Pico)"**.
@@ -240,7 +245,104 @@ dispositivos al router o pasar al hotspot del celular son los caminos más simpl
 
 ---
 
-## 8. Complicaciones y cómo se resolvieron
+## 8. La matriz MAX7219 real (2026-08-27)
+
+Con la matriz de 64 LEDs y el módulo MAX7219 ya en mano, se armó y probó **por separado del WiFi**
+(sin tocar todavía `main.py` ni el socket UDP) — primero confirmar que la matriz dibuja bien, recién
+después conectarla al resto.
+
+### Cableado
+
+Se usó el lado **IN** de la matriz (el que recibe datos — el **OUT** es para encadenar una segunda
+matriz en serie, sin uso acá con un solo módulo), siguiendo la tabla de conexionado del
+[`README.md`](README.md) del proyecto: `DIN`→`GP3` (SPI0 MOSI), `CLK`→`GP2` (SPI0 SCK), `CS`→`GP5`,
+más `VCC`/`GND`.
+
+### Instalar el driver de la comunidad
+
+Se usó [`mcauser/micropython-max7219`](https://github.com/mcauser/micropython-max7219), ya citado
+como referencia en el `README.md` del proyecto. De ese repo solo hace falta **un archivo**,
+`max7219.py` (la clase `Matrix8x8`) — el resto del repo es documentación, no se sube a la placa.
+"Instalar" una librería en MicroPython es simplemente tener ese `.py` guardado en el sistema de
+archivos de la Pico, al lado de los demás scripts (con Thonny: abrirlo y `Guardar como` →
+**Raspberry Pi Pico**, no "This computer").
+
+### Trampa real: Thonny se colgó por la Pico desconectada, y no era obvio
+
+En un momento, Thonny dejó de responder a Guardar y a Abrir archivo (Ctrl+O) — incluso para
+archivos locales de la PC, sin relación aparente con la Pico. Revisando el log de Thonny
+(`~/.config/Thonny/backend.log`) y el propio sistema, la causa quedó clara: el intérprete seguía
+configurado para conectarse a `/dev/ttyACM0`, pero la Pico **no estaba conectada** en ese momento
+(`lsusb` no la mostraba, `/dev/ttyACM0` no existía) — el backend se quedó esperando esa conexión
+para siempre, y eso bloqueó toda la interfaz, no solo lo relacionado al dispositivo. Se resolvió
+reconectando el cable USB; si hubiera seguido colgado, el otro camino era cambiar el intérprete a
+"Local Python 3" desde el selector de abajo a la derecha, para cortar ese backend colgado sin
+cerrar Thonny.
+
+### Trampa real: el ejemplo del repo es para otra placa
+
+El ejemplo del `README` de `mcauser` usa `SPI(1)` y `Pin('X5')` — sintaxis de la **Pyboard**
+(placa oficial de MicroPython, chip STM32), no de la Pico. En la Pico los pines se setean a mano,
+explícitamente, en dos líneas propias del script (no en el driver):
+
+```python
+spi = SPI(0, baudrate=10000000, sck=Pin(2), mosi=Pin(3))  # CLK y DIN
+cs = Pin(5, Pin.OUT)                                       # CS
+```
+
+El número tiene que coincidir con el pin físico real al que se conectó cada cable — `SPI(0)` porque
+GP2/GP3 pertenecen al bus SPI0 de la Pico (la placa tiene dos buses SPI fijos, no arbitrarios).
+
+### Trampa real: la matriz salía rotada
+
+Al dibujar un carácter de prueba (`display.text('L', 0, 0, 1)`), se veía girado respecto a como
+está montada físicamente la matriz — el mismo riesgo ya anotado en la sección 11 del `README.md`
+del proyecto, y se resuelve en software, no recableando. Se probó primero con un buffer temporal en
+el propio script (dibujar en un `framebuf.FrameBuffer` aparte y volcarlo al real con las
+coordenadas transformadas), y una vez confirmada la fórmula correcta (**90° antihorario**), se
+llevó esa misma transformación directo al método `show()` de `max7219.py` — así cualquier dibujo
+(`text()`, `pixel()`, lo que sea) sale rotado automáticamente, sin repetir el truco en cada script
+nuevo. El archivo modificado queda en [`pico/max7219.py`](pico/max7219.py).
+
+**Detalle de la solución:** en vez de reconstruir el byte de cada fila con operaciones de bits a
+mano (riesgo de acertar mal el orden y romper lo que ya funcionaba), se arma un
+`framebuf.FrameBuffer` temporal de una sola fila y se usa su propio `.pixel()` para escribir cada
+bit — el mismo mecanismo, ya probado, que usa el resto del driver. Eso evita tener que adivinar el
+orden interno de bits del formato `MONO_HLSB`.
+
+### Trampa real: errores de sintaxis al editar `max7219.py` a mano
+
+Al pegar el `show()` nuevo dentro del archivo en la Pico, dos veces seguidas quedó con
+**indentación incorrecta** (el método nuevo quedó "adentro" del anterior, con la misma cantidad de
+espacios que su propio `def` en vez de un escalón más). Python tira `SyntaxError` sin decir
+exactamente qué espacio sobra. Se resolvió reemplazando el archivo **completo**, en vez de pegar
+fragmentos sueltos en medio de uno ya editado.
+
+### Límites de la fuente de texto integrada (no son bugs)
+
+- Un carácter dibujado con `text()` no ocupa la fila de abajo de la matriz — la fuente reserva esa
+  fila como espacio entre líneas, es así por diseño, no un error de rotación ni de cableado.
+- Con un solo módulo (8 columnas en total) no entran dos caracteres a la vez — hace falta una
+  segunda matriz encadenada (por el `OUT`) para eso, o mostrarlos de a uno con una pausa.
+- Emojis (`'☺'`) no funcionan con `text()`: la fuente integrada solo tiene los caracteres ASCII
+  básicos, no símbolos Unicode.
+
+Ninguno de estos tres afecta al proyecto real: las expresiones faciales no se van a dibujar con
+`text()`, sino con sprites propios (ver siguiente punto).
+
+### Dibujar un sprite propio
+
+Confirmado con una carita feliz dibujada pixel por pixel, con el **mismo formato** que los sprites
+del lado Jetson (una lista de 8 filas de 8 caracteres `'0'`/`'1'`, ver
+[`lado_jetson.md`](lado_jetson.md) sección 7) — para poder reusar patrones entre los dos lados sin
+inventar una representación nueva. Código en
+[`pico/demo_cara_feliz.py`](pico/demo_cara_feliz.py).
+
+![Carita feliz dibujada en la matriz MAX7219](imagenes/matriz_cara_feliz.jpg)
+
+---
+
+## 9. Complicaciones y cómo se resolvieron
 
 | Problema | Causa | Solución |
 |---|---|---|
@@ -250,18 +352,21 @@ dispositivos al router o pasar al hotspot del celular son los caminos más simpl
 | Primer intento a `lab-raspi` parecía quedarse "conectando" para siempre | Sospecha de bug conocido de CYW43 con routers en modo WPA/WPA2 mixto+TKIP — no confirmado, resultó falsa alarma | Reintentar con un script con timeout y `wlan.status()`; conectó en unos segundos |
 | SSH de la laptop a la Jetson dejó de andar al pasar la Jetson a WiFi | La laptop había quedado en otra red (la de la facultad), sin ruta a la IP nueva de la Jetson en `lab-raspi` | Conectar también la laptop a `lab-raspi`; diagnosticado primero con `ping` simple, antes de sospechar del SSH |
 | La IP de la Pico cambió entre una prueba y la siguiente (`.101` → `.103`) | El router viejo no tiene reserva DHCP para la MAC de la Pico | Confirmar la IP con `wlan.ifconfig()[0]` en cada sesión; pendiente fijar una IP reservada |
+| Thonny dejó de responder a Guardar/Abrir, incluso con archivos locales | El intérprete seguía apuntando a `/dev/ttyACM0` con la Pico físicamente desconectada; el backend quedó colgado esperando esa conexión y trabó toda la interfaz | Reconectar el cable USB de la Pico; alternativa sin reconectar: cambiar a "Local Python 3" en el selector de intérprete |
+| El ejemplo del driver (`SPI(1)`, `Pin('X5')`) no funcionaba en la Pico | Ese ejemplo está escrito para la Pyboard (STM32), con convención de pines distinta | Usar `SPI(0, sck=Pin(2), mosi=Pin(3))` y `Pin(5, Pin.OUT)`, los pines reales del cableado en la Pico |
+| El dibujo salía rotado respecto a la matriz física | Riesgo ya conocido (sección 11 del `README.md`): la orientación depende del montaje físico, no hay forma de saberlo sin probar | Confirmar la rotación necesaria (90° antihoraria) con un dibujo asimétrico, y centralizarla en `show()` de `max7219.py` |
+| `SyntaxError` al editar `max7219.py` a mano, dos veces seguidas | Indentación incorrecta al pegar un método nuevo en medio del archivo (quedaba "adentro" del método anterior) | Reemplazar el archivo completo en vez de pegar fragmentos sueltos |
 
 ---
 
-## 9. Próximos pasos
+## 10. Próximos pasos
 
-1. Cuando llegue la matriz MAX7219: reemplazar `led.toggle()` por escribir el framebuffer de 8
-   bytes vía SPI, sobre el mismo socket UDP ya funcionando (protocolo definido en el `README.md`
-   del proyecto, sección 9).
+1. **Unir las dos partes ya probadas por separado:** editar `pico/main.py` para que, en vez de
+   `led.toggle()`, escriba el sprite recibido por UDP en la matriz (usando `max7219.py` y el mismo
+   formato de 8 filas ya validado). El protocolo de 8 bytes está definido en el `README.md` del
+   proyecto, sección 9.
 2. Fijar una IP reservada para la Pico en el router (o pasar a un router/AP que la sostenga), para
    no tener que reconfirmar la IP en cada sesión.
-3. Guardar el script final de la Pico como `main.py` en la placa, para que arranque solo sin
-   depender de Thonny conectado.
-4. Si la latencia del router viejo se vuelve un problema con el streaming real del sprite, migrar
+3. Si la latencia del router viejo se vuelve un problema con el streaming real del sprite, migrar
    a otra red (hotspot del celular u otro router) antes de invertir tiempo optimizando el
    protocolo.
