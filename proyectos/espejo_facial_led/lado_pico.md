@@ -10,9 +10,12 @@ instalar su driver y dibujar en ella. El lado Jetson (MediaPipe, sprites) está 
 > **Estado.** Fase 1 simplificada (LED) y Fase 2 verificadas el **2026-08-25** — la Pico se conecta
 > por WiFi, abre un socket UDP y prende/apaga el LED al recibir un paquete desde la Jetson. La
 > matriz MAX7219 real llegó y se verificó el **2026-08-27**: cableada, con su driver instalado y
-> corregido (rotación), dibujando sprites propios de punta a punta — **todavía sin conectar al
-> WiFi/UDP** (`pico/main.py` sigue usando el LED de a bordo; falta unir ambas partes). Sigue
-> pendiente definir una IP fija para la Pico.
+> corregido (rotación), dibujando sprites propios de punta a punta. El **2026-08-28** se unieron
+> las dos partes del lado Pico: `main.py` ahora decodifica el sprite de 8 bytes recibido por UDP y
+> lo dibuja en la matriz real — probado de forma aislada (sin la Jetson todavía) mandando la carita
+> feliz a mano por `nc`, funcionó. **Falta la Fase 6 del lado Jetson** (que la Jetson mande de
+> verdad el sprite que ya calcula, en vez de solo imprimirlo) para cerrar la integración completa.
+> Sigue pendiente definir una IP fija para la Pico.
 
 **Herramienta usada:** [Thonny](https://thonny.org/), con la Pico W ya conectada por USB y
 detectada como intérprete **"MicroPython (Raspberry Pi Pico)"**.
@@ -342,7 +345,50 @@ inventar una representación nueva. Código en
 
 ---
 
-## 9. Complicaciones y cómo se resolvieron
+## 9. Fase 6 del lado Pico: recibir y dibujar el sprite por UDP (2026-08-28)
+
+Con las dos mitades ya validadas por separado (WiFi + UDP con el LED en la sección 5; matriz +
+sprites propios en la sección 8), se unieron en [`pico/main.py`](pico/main.py): en vez de
+`led.toggle()`, cada paquete UDP se decodifica como los 8 bytes del protocolo (uno por fila, bit 7
+= píxel izquierdo — definido en el `README.md` del proyecto, sección 9) y se dibuja con
+`display.pixel()` + `display.show()` de `max7219.py`, la misma API ya probada en
+`demo_cara_feliz.py`.
+
+Probado de forma **aislada** (sin la Jetson todavía — un sprite fijo mandado a mano, no calculado
+por MediaPipe): con la Pico corriendo `main.py`, conectada a `lab-raspi` en `192.168.1.100`, desde
+otra máquina de la misma red:
+
+```bash
+printf '\x00\x24\x24\x00\x42\x24\x18\x00' | nc -u -w1 192.168.1.100 5005
+```
+
+**Resultado real:** la matriz mostró la misma carita feliz de la sección 8, esta vez recibida por
+WiFi/UDP en vez de estar hardcodeada en el script — confirma el camino completo "sprite arbitrario
+por UDP → matriz" de este lado. Falta todavía que la Jetson mande el sprite real que calcula (ver
+"Próximos pasos").
+
+### Trampa real: `ImportError: no module named 'wifi_config'`
+
+Al correr `main.py` con F5 dio:
+
+```
+ImportError: no module named 'wifi_config'
+```
+
+`wifi_config.py` existe en el repo, en la PC — pero eso no alcanza: MicroPython busca los módulos
+en el sistema de archivos de la **propia Pico**, no en la carpeta del repo. El archivo nunca se
+había subido a la placa (a diferencia de `max7219.py`, que sí se subió en la sección 8). Se
+resolvió igual que con el driver: **Archivo → Guardar como → Raspberry Pi Pico**, subiendo
+`wifi_config.py` tal cual (SSID y contraseña ya completas, no hace falta editarlo).
+
+*Efecto secundario a evitar:* un primer intento de solución fue pegar `SSID`/`PASSWORD` a mano
+directo en `main.py`, después de la línea `from wifi_config import SSID, PASSWORD` — no funciona,
+porque el `ImportError` corta la ejecución en esa misma línea, antes de llegar a las de abajo. La
+solución real es subir el archivo que falta, no duplicar los valores en otro lado.
+
+---
+
+## 10. Complicaciones y cómo se resolvieron
 
 | Problema | Causa | Solución |
 |---|---|---|
@@ -356,15 +402,16 @@ inventar una representación nueva. Código en
 | El ejemplo del driver (`SPI(1)`, `Pin('X5')`) no funcionaba en la Pico | Ese ejemplo está escrito para la Pyboard (STM32), con convención de pines distinta | Usar `SPI(0, sck=Pin(2), mosi=Pin(3))` y `Pin(5, Pin.OUT)`, los pines reales del cableado en la Pico |
 | El dibujo salía rotado respecto a la matriz física | Riesgo ya conocido (sección 11 del `README.md`): la orientación depende del montaje físico, no hay forma de saberlo sin probar | Confirmar la rotación necesaria (90° antihoraria) con un dibujo asimétrico, y centralizarla en `show()` de `max7219.py` |
 | `SyntaxError` al editar `max7219.py` a mano, dos veces seguidas | Indentación incorrecta al pegar un método nuevo en medio del archivo (quedaba "adentro" del método anterior) | Reemplazar el archivo completo en vez de pegar fragmentos sueltos |
+| `ImportError: no module named 'wifi_config'` al correr `main.py` | El archivo existía en el repo (PC) pero nunca se había subido a la Pico — MicroPython solo ve su propio sistema de archivos | Subir `wifi_config.py` a la Pico con Archivo → Guardar como → Raspberry Pi Pico |
 
 ---
 
-## 10. Próximos pasos
+## 11. Próximos pasos
 
-1. **Unir las dos partes ya probadas por separado:** editar `pico/main.py` para que, en vez de
-   `led.toggle()`, escriba el sprite recibido por UDP en la matriz (usando `max7219.py` y el mismo
-   formato de 8 filas ya validado). El protocolo de 8 bytes está definido en el `README.md` del
-   proyecto, sección 9.
+1. **Lado Jetson:** que `jetson_face.py` mande de verdad el sprite que ya calcula (fase 5) por
+   UDP a la Pico, en vez de solo imprimirlo en consola — es lo único que falta para la integración
+   completa (Fase 6 del `README.md`, sección 10). Documentado como pendiente en
+   [`lado_jetson.md`](lado_jetson.md), sección 9.
 2. Fijar una IP reservada para la Pico en el router (o pasar a un router/AP que la sostenga), para
    no tener que reconfirmar la IP en cada sesión.
 3. Si la latencia del router viejo se vuelve un problema con el streaming real del sprite, migrar

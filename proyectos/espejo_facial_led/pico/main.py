@@ -1,8 +1,8 @@
 # Espejo Facial LED — lado Pico W
-# Validado el 2026-08-25 (ver ../lado_pico.md): conecta por WiFi y prende/apaga el LED de a
-# bordo al recibir cualquier paquete UDP. Reemplazo provisorio de la matriz MAX7219 (Fase 1-2
-# simplificada) mientras no llega el hardware — cuando llegue, cambiar led.toggle() por la
-# escritura del framebuffer de 8 bytes vía SPI (protocolo en ../README.md, sección 9).
+# Fase 6 (integración): conecta por WiFi, abre un socket UDP y dibuja en la matriz MAX7219 real
+# el sprite de 8 bytes recibido en cada paquete (protocolo en ../README.md, sección 9 — byte[fila],
+# bit 7 = píxel izquierdo). Reemplaza la versión con el LED de a bordo (fases 1-2 simplificada,
+# ver ../lado_pico.md) ahora que la matriz ya está cableada y probada (demo_cara_feliz.py).
 #
 # Necesita wifi_config.py al lado (copiá wifi_config.example.py y completá SSID/PASSWORD;
 # no se commitea, ver .gitignore).
@@ -10,7 +10,8 @@
 import network
 import socket
 import time
-from machine import Pin
+from machine import Pin, SPI
+import max7219
 from wifi_config import SSID, PASSWORD
 
 wlan = network.WLAN(network.STA_IF)
@@ -20,10 +21,10 @@ while not wlan.isconnected():
     time.sleep(0.5)
 print("IP:", wlan.ifconfig()[0])
 
-try:
-    led = Pin("LED", Pin.OUT)   # Pico W: LED en el chip WiFi (CYW43), no en un GPIO común
-except TypeError:
-    led = Pin(25, Pin.OUT)      # Pico sin W: GPIO25 directo
+spi = SPI(0, baudrate=10000000, sck=Pin(2), mosi=Pin(3))
+cs = Pin(5, Pin.OUT)
+display = max7219.Matrix8x8(spi, cs, 1)
+display.brightness(2)
 
 PORT = 5005
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -32,5 +33,14 @@ print("Escuchando UDP en el puerto", PORT)
 
 while True:
     data, addr = sock.recvfrom(64)
-    print("Paquete de", addr, ":", data)
-    led.toggle()
+    if len(data) != 8:
+        print("Paquete de", addr, "ignorado (esperaba 8 bytes, llegaron", len(data), ")")
+        continue
+    print("Sprite de", addr, ":", data)
+    display.fill(0)
+    for fila in range(8):
+        byte_fila = data[fila]
+        for columna in range(8):
+            if byte_fila & (1 << (7 - columna)):
+                display.pixel(columna, fila, 1)
+    display.show()

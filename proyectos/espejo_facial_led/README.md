@@ -6,8 +6,11 @@ Plataforma: NVIDIA Jetson Orin Nano + Raspberry Pi Pico W.
 - **Responsable:** Lisandro Elmelaj ([@lisandroelmelaj](https://github.com/lisandroelmelaj))
 - **Revisor:** Javier Velez ([@javovelez](https://github.com/javovelez))
 - **Estado:** En curso — fases 0 y 3 a 5 del lado Jetson ([`lado_jetson.md`](lado_jetson.md)) y
-  fases 1-2 del lado Pico W validadas con el LED de a bordo ([`lado_pico.md`](lado_pico.md)).
-  Falta la matriz MAX7219 para cerrar las fases 1-2 de verdad
+  fases 1-2 del lado Pico W completas, incluida la Fase 6 **de ese lado**: la Pico ya recibe un
+  sprite de 8 bytes por UDP y lo dibuja en la matriz MAX7219 real (probado con un sprite fijo
+  mandado a mano, ver [`lado_pico.md`](lado_pico.md)). Falta la Fase 6 **del lado Jetson**: que
+  `jetson_face.py` mande de verdad el sprite que calcula, en vez de solo imprimirlo — es lo único
+  que falta para la integración completa.
 - **Requisitos previos:** la placa andando con JetPack 6 y la cámara funcionando; ver la
   [guía de iniciación](../../guia_de_iniciacion/).
 
