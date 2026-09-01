@@ -13,8 +13,8 @@ instalar su driver y dibujar en ella. El lado Jetson (MediaPipe, sprites) está 
 > corregido (rotación), dibujando sprites propios de punta a punta. El **2026-08-28** se unieron
 > las dos partes del lado Pico: `main.py` ahora decodifica el sprite de 8 bytes recibido por UDP y
 > lo dibuja en la matriz real — probado de forma aislada (sin la Jetson todavía) mandando la carita
-> feliz a mano por `nc`, funcionó. **Falta la Fase 6 del lado Jetson** (que la Jetson mande de
-> verdad el sprite que ya calcula, en vez de solo imprimirlo) para cerrar la integración completa.
+> feliz a mano por `nc`, funcionó. El **2026-08-31** se cerró la Fase 6 completa: la Jetson ya manda
+> el sprite que calcula en vivo y la matriz lo dibuja — ver [`integracion.md`](integracion.md).
 > Sigue pendiente definir una IP fija para la Pico.
 
 **Herramienta usada:** [Thonny](https://thonny.org/), con la Pico W ya conectada por USB y
@@ -408,10 +408,8 @@ solución real es subir el archivo que falta, no duplicar los valores en otro la
 
 ## 11. Próximos pasos
 
-1. **Lado Jetson:** que `jetson_face.py` mande de verdad el sprite que ya calcula (fase 5) por
-   UDP a la Pico, en vez de solo imprimirlo en consola — es lo único que falta para la integración
-   completa (Fase 6 del `README.md`, sección 10). Documentado como pendiente en
-   [`lado_jetson.md`](lado_jetson.md), sección 9.
+1. ~~**Lado Jetson:** que `jetson_face.py` mande de verdad el sprite que ya calcula.~~ **Hecho el
+   31/08** — la Fase 6 quedó cerrada de punta a punta, ver [`integracion.md`](integracion.md).
 2. Fijar una IP reservada para la Pico en el router (o pasar a un router/AP que la sostenga), para
    no tener que reconfirmar la IP en cada sesión.
 3. Si la latencia del router viejo se vuelve un problema con el streaming real del sprite, migrar

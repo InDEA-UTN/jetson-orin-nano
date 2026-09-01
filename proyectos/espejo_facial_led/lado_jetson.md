@@ -1,13 +1,17 @@
 # Lado Jetson — visión por computador
 
-Todo lo hecho hasta ahora del lado "cerebro" del proyecto: detectar la cara con la cámara CSI,
-calcular sus gestos y convertirlos en un sprite. El lado Pico W (matriz LED) todavía no arrancó —
-ver "Próximos pasos" al final.
+El arranque del lado "cerebro" del proyecto: detectar la cara con la cámara CSI, calcular sus gestos
+y convertirlos en un sprite. Es el punto de partida — la integración con la matriz y el refinamiento
+posterior de los gestos están en [`integracion.md`](integracion.md).
 
 > **Estado.** Verificado en la placa el **2026-08-21**: Fases 0, 3, 4 y 5 de las siete que define
 > el [`README.md`](README.md) del proyecto (sección 10). Las fases 1 y 2 (Pico W) se hicieron después,
-> el 25/08, y están en [`lado_pico.md`](lado_pico.md) — validadas con el LED de a bordo, porque la
-> matriz MAX7219 todavía no llegó.
+> el 25/08, y están en [`lado_pico.md`](lado_pico.md).
+>
+> **Lo que sigue a este documento:** el 31/08 se cambió a una webcam USB, se cerró la Fase 6 (la
+> Jetson mandando el sprite de verdad por UDP) y se rehizo la cuantización de gestos con
+> calibración por persona — todo eso está en [`integracion.md`](integracion.md). Varios de los
+> umbrales y limitaciones que se describen más abajo quedaron superados ahí.
 
 **Antes hay que haber hecho:** la puesta a punto de la placa (Docker con runtime `nvidia`) y la
 cámara CSI conectada y funcionando — documentado en
@@ -295,11 +299,14 @@ dibujando el texto del estado sobre la imagen):
 
 ---
 
-## 9. Próximos pasos
+## 9. Con qué seguir
 
-1. **Calibración real de los umbrales EAR/MAR**, idealmente probando con más de una persona — los
-   valores de arriba son válidos para esta sesión puntual, no un estándar.
-2. **Distinguir sonrisa de cara triste**, agregando el landmark de las comisuras de la boca
-   relativo al centro (hoy el MAR sólo distingue abierta/cerrada).
-3. **Cuando llegue la matriz LED:** Fase 6 del README — protocolo UDP de 8 bytes (uno por fila de
-   la matriz) entre la Jetson y la Pico W.
+Los tres pendientes que dejó este documento se resolvieron el 31/08 y están documentados en
+[`integracion.md`](integracion.md):
+
+1. **Calibración de los umbrales** — se reemplazaron los valores fijos por una calibración inicial
+   de 3 segundos que mide la cara neutra de cada persona (sección 6 de ese documento).
+2. **Distinguir sonrisa de cara triste** — resuelto con una métrica nueva de curvatura de boca, que
+   compara la altura de las comisuras contra el centro de los labios (sección 5).
+3. **Fase 6, el protocolo UDP de 8 bytes** — funcionando de punta a punta contra la matriz
+   MAX7219 (sección 2).
