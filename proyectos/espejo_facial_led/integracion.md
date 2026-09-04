@@ -237,14 +237,18 @@ Y cómo se distingue cada estado con tan pocos píxeles:
 
 - **Cejas:** *levantadas* = fila de arriba; *normales* = fila de abajo; *fruncidas* = fila de abajo
   pero corridas hacia el centro, que es cómo se ve un ceño fruncido real.
-- **Ojos:** *abierto* = **un punto**; *cerrado* = **dos puntos horizontales** (el párpado cerrado),
-  extendiéndose hacia afuera de la cara para que las columnas del medio queden libres y los dos ojos
-  se sigan leyendo separados. Se dejó en dos estados a propósito: la versión con tres niveles
-  (abierto / entrecerrado / cerrado) resultaba difícil de distinguir a este tamaño y no aportaba.
+- **Ojos:** *abierto* = **un punto**; *cerrado* = un guiño en forma de **">" o "<"** (tres puntos en
+  las filas 1-2-3: dos exteriores arriba y abajo, uno interior al medio). Se dejó en dos estados a
+  propósito: la versión con tres niveles (abierto / entrecerrado / cerrado) resultaba difícil de
+  distinguir a este tamaño y no aportaba. Cuando un ojo cierra, la mitad de la ceja de ese mismo lado
+  se apaga (deja de dibujarse), así se lee como que la ceja "se va" junto con el párpado en vez de
+  quedar flotando arriba — ver el comentario de `construir_sprite()` en
+  [`gestos.py`](jetson/gestos.py) para el detalle de filas/columnas y por qué el guiño no puede bajar
+  a la fila 4 (se pega con la sonrisa).
 - **Boca:** *neutra* = línea recta; *sonrisa* = comisuras arriba y centro abajo; *triste* = al revés;
   *abierta* = óvalo de tres filas.
 
-![Guiño en la matriz: un ojo abierto (un punto) y el otro cerrado (dos puntos)](imagenes/matriz_guino.jpg)
+![Guiño en la matriz: un ojo abierto (un punto) y el otro cerrado (guiño ">"/"<")](imagenes/matriz_guino.jpg)
 
 ### Las dos métricas nuevas
 
@@ -370,7 +374,43 @@ herramienta que existe para confiar en lo que ves habría empezado a mentir sin 
 
 ---
 
-## 9. Próximos pasos
+## 9. Segunda vuelta de refinamiento: guiño, sensibilidad y mirada (03/09)
+
+Después de probar el sistema con la matriz real aparecieron tres ajustes más, ya sobre un sistema
+que funcionaba de punta a punta.
+
+**Guiño superpuesto con la sonrisa.** El guiño ">"/"<" se había dibujado primero en las filas 2-3-4.
+En la matriz real, sonreír y guiñar un ojo al mismo tiempo se veía como una sola forma pegada: la
+punta de abajo del guiño (fila 4) caía en las mismas columnas que las comisuras de la sonrisa (fila
+5), y a ese tamaño el ojo se leía fusionado con la boca. Se subió el guiño a las filas 1-2-3 —
+liberando la fila 1 para el ojo cerrado no cuesta nada porque esa mitad de la ceja ya se apaga
+cuando el ojo cierra (ver sección 5) — y la fila 4 quedó de separador real entre ojos y boca.
+
+**Sensibilidad de sonrisa/triste.** Cerca de la cara neutra, `curva` disparaba sonrisa o triste con
+gestos mínimos. Se subió el margen (`DELTA_CURVA_SONRISA` / `DELTA_CURVA_TRISTE` en
+[`gestos.py`](jetson/gestos.py)) de 0.015 a 0.025, para que haga falta un gesto más marcado.
+
+**Seguimiento de mirada (iris).** Se probó agregar dirección de mirada usando los landmarks de iris
+que trae el modelo (478 en vez de 468, ver "Las dos métricas nuevas" en la sección 5). La métrica se normaliza igual que
+`altura_cejas()`: posición del iris como fracción entre las esquinas del propio ojo, para que no
+dependa de a qué distancia o ángulo esté la cara — mismo principio que `escala()`.
+
+- **Horizontal (izquierda/centro/derecha) funciona bien** y quedó activo: mover los ojos a los
+  costados no cambia la apertura del párpado ni la altura de la ceja, así que no interfiere con el
+  resto de los gestos. Con ambos ojos abiertos, el punto del ojo en la matriz se corre una columna
+  hacia el lado que se está mirando.
+- **Vertical (arriba/abajo) se probó y se sacó.** En la prueba real, mirar arriba o abajo disparaba
+  guiños y cejas levantadas falsos: mover los ojos verticalmente mueve también el párpado y la ceja
+  lo suficiente como para cruzar esos umbrales. No es un problema de calibración (un `DELTA` mal
+  puesto) sino un confundido anatómico entre "mirada vertical" y las métricas que ya se usan para
+  ojo cerrado y cejas — no tiene arreglo ajustando un número. Se descartó, con la explicación en el
+  comentario junto a `DELTA_GAZE_X` en `gestos.py`.
+- Como con el guiño, la mirada se ignora por completo mientras cualquier ojo esté cerrado: no tiene
+  sentido mostrar hacia dónde miraba un ojo que ya no se ve.
+
+---
+
+## 10. Próximos pasos
 
 1. **Ajustar los umbrales de los gestos que cuesten** — los `DELTA_*` de
    [`gestos.py`](jetson/gestos.py) están juntos arriba del archivo, comentados. El método:
@@ -383,3 +423,7 @@ herramienta que existe para confiar en lo que ves habría empezado a mentir sin 
    editar `IP_PICO` cada vez.
 4. **El video de 30 segundos** que el `README.md` pide como entregable (sección 13), ahora que el
    sistema completo funciona.
+5. **Mirada vertical**, si se retoma alguna vez: haría falta una métrica que no dependa de la
+   apertura del párpado (la sección 9 explica por qué la actual no sirve) — por ejemplo, mirar solo
+   qué tan cerca está el iris del borde del párpado ya cerrado en vez de su reflejo/posición
+   absoluta, o descartar el frame si el EAR/altura de ceja se movieron junto con el iris.

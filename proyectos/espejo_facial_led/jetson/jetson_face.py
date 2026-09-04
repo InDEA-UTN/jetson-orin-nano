@@ -1,8 +1,9 @@
 # Espejo Facial LED - lado Jetson
 # Fase 6 + 7: captura la webcam USB, corre MediaPipe Face Landmarker en vivo, cuantiza los
 # gestos a estados discretos (ojos abierto/cerrado por ojo, cejas en 3 posiciones, boca en 4
-# formas), compone un sprite de 8x8 y lo manda por UDP a la Pico W, que lo dibuja en la matriz
-# MAX7219 (ver ../lado_pico.md seccion 9 y ../lado_jetson.md).
+# formas, mirada izquierda/centro/derecha cuando los dos ojos estan abiertos), compone un sprite de
+# 8x8 y lo manda por UDP a la Pico W, que lo dibuja en la matriz MAX7219 (ver ../lado_pico.md
+# seccion 9 y ../lado_jetson.md).
 #
 # Necesita, con el venv (~/espejo_facial_venv) activado:
 #   - mediapipe, opencv (ver ../lado_jetson.md secciones 3 y 5)
@@ -67,7 +68,8 @@ try:
 
         estados = analizador.procesar(result.face_landmarks[0])
         sprite = gestos.construir_sprite(
-            estados["ojo_izq"], estados["ojo_der"], estados["cejas"], estados["boca"])
+            estados["ojo_izq"], estados["ojo_der"], estados["cejas"], estados["boca"],
+            estados["mirada"])
         sock.sendto(gestos.sprite_a_bytes(sprite), (IP_PICO, PORT))
 
         if estados["calibrando"]:
@@ -84,10 +86,11 @@ try:
             ultimo_restante = None
 
         # Solo se imprime cuando cambia algun estado, para no llenar la consola a 30 por segundo
-        actual = (estados["ojo_izq"], estados["ojo_der"], estados["cejas"], estados["boca"])
+        actual = (estados["ojo_izq"], estados["ojo_der"], estados["cejas"], estados["boca"],
+                  estados["mirada"])
         if actual != anterior:
             print(f"ojo_izq={actual[0]:<9} ojo_der={actual[1]:<9} "
-                  f"cejas={actual[2]:<11} boca={actual[3]}")
+                  f"cejas={actual[2]:<11} boca={actual[3]:<8} mirada={actual[4]}")
             anterior = actual
 
 except KeyboardInterrupt:

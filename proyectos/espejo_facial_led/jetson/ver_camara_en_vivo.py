@@ -97,6 +97,7 @@ try:
                 texto_con_borde(frame, f"Cejas: {estados['cejas']}", 30)
                 texto_con_borde(frame, f"Ojos: izq {estados['ojo_izq']} / der {estados['ojo_der']}", 55)
                 texto_con_borde(frame, f"Boca: {estados['boca']}", 80)
+                texto_con_borde(frame, f"Mirada: {estados['mirada']}", 105)
                 # Los valores crudos con el umbral YA CALIBRADO de esta persona al lado: son los
                 # numeros que hay que mirar para ajustar los DELTA_* de gestos.py si algun gesto
                 # no se dispara.
@@ -105,14 +106,19 @@ try:
                     f"EAR {v['ear_izq']:.2f}/{v['ear_der']:.2f} "
                     f"(cerr <{u['ear_izq_cerrado']:.2f}/{u['ear_der_cerrado']:.2f})  "
                     f"MAR {v['mar']:.2f} (abierta >{u['mar_abierta']:.2f})",
-                    105, (200, 200, 200))
+                    130, (200, 200, 200))
                 texto_con_borde(
                     frame,
                     f"cejas {v['cejas']:.3f} "
                     f"(frunc <{u['ceja_fruncida']:.3f} / lev >{u['ceja_levantada']:.3f})  "
                     f"curva {v['curva']:+.4f} "
                     f"(triste <{u['curva_triste']:+.4f} / sonrisa >{u['curva_sonrisa']:+.4f})",
-                    128, (200, 200, 200))
+                    153, (200, 200, 200))
+                texto_con_borde(
+                    frame,
+                    f"gaze_x {v['gaze_x']:.3f} "
+                    f"(izq <{u['gaze_izq']:.3f} / der >{u['gaze_der']:.3f})",
+                    176, (200, 200, 200))
 
         out.write(frame)
 except KeyboardInterrupt:

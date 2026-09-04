@@ -12,6 +12,7 @@ adentro.
 | Proyecto | Qué hace | Responsable | Estado |
 |----------|----------|-------------|--------|
 | [`espejo_facial_led/`](espejo_facial_led/) | Réplica de expresiones faciales en tiempo real sobre una matriz LED 8×8. La Jetson ve la cara con MediaPipe y manda un sprite de 8 bytes por UDP a un Pico W que maneja la matriz. | Lisandro Elmelaj | Funcionando de punta a punta desde el 31/08; pendientes: ajuste fino de umbrales, IP reservada para la Pico y video de demostración |
+| [`abecedario_de_senas/`](abecedario_de_senas/) | Traductor de abecedario dactilológico (ASL) a letras, mostrando cada letra en la misma matriz LED 8×8 del espejo facial. La Jetson ve la mano con MediaPipe Hands y clasifica la letra; mismo protocolo UDP hacia la Pico W. | Lisandro Elmelaj | Recién arrancando (03/09): script de la fase 1 escrito, sin correr en la placa todavía; falta descargar el modelo `hand_landmarker.task` y elegir el clasificador pre-entrenado |
 
 ## Qué debe tener un proyecto
 

@@ -154,7 +154,9 @@ Bazel que **no aplican acá**. Ignorarlos.
 
 - Reconocimiento de emociones con una CNN propia acelerada por TensorRT
 - Múltiples caras simultáneas, cada una controlando su propia matriz
-- Estimación de mirada precisa con seguimiento de iris
+- Estimación de mirada vertical (arriba/abajo) con seguimiento de iris — la horizontal
+  (izquierda/centro/derecha) ya está resuelta sin GPU (ver `integracion.md` sección 9); la vertical
+  quedó pendiente porque se confunde con el parpadeo y las cejas, y necesitaría una métrica más fina
 - Modelo entrenado por el propio alumno con TAO Toolkit
 
 ---
@@ -259,6 +261,9 @@ fantasma, la solución es intercalar un buffer 74HCT125 en las líneas DIN/CLK/C
      se descartó al implementarlo — ver [`integracion.md`](integracion.md) sección 5
    - Cejas: 3 posiciones (normal / levantadas / fruncidas)
    - Boca: 4 formas (neutra / sonrisa / abierta / triste)
+   - Mirada (agregada después, no estaba en el plan original): 3 estados (izquierda / centro /
+     derecha), solo con los dos ojos abiertos. Se probó también arriba/abajo y se descartó — ver
+     [`integracion.md`](integracion.md) sección 9
 6. **Composición del sprite**: se combina el estado de cada rasgo en una matriz de 8×8 bits → 8
    bytes.
 7. **Envío**: socket UDP al Pico, ~30 paquetes por segundo.
@@ -381,6 +386,8 @@ proyectos/espejo_facial_led/
     gestos.py              # métricas, calibración, estados y sprite (lo comparten los otros dos)
     jetson_face.py         # el programa real: cámara → gestos → sprite por UDP a la Pico
     ver_camara_en_vivo.py  # visor de diagnóstico: el video con los estados dibujados encima
+    test_iris.py           # script suelto para validar la mirada (que ojo es izq/der, valores
+                            # crudos); no lo usan jetson_face.py ni ver_camara_en_vivo.py
   pico/              # código que corre en la Pico W (MicroPython)
     main.py                # este nombre es obligatorio: MicroPython lo ejecuta solo al arrancar
     max7219.py             # driver de la matriz

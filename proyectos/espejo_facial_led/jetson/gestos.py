@@ -36,12 +36,27 @@ FRACCION_OJO_CERRADO  = 0.65    # ojo cerrado si el EAR baja a menos de este % d
 DELTA_MAR_ABIERTA     = 0.25    # boca abierta si el MAR sube esto por encima del neutro
 DELTA_CEJA_LEVANTADA  = 0.06    # cejas levantadas si suben esto sobre su altura neutra
 DELTA_CEJA_FRUNCIDA   = 0.06    # cejas fruncidas si bajan esto de su altura neutra
-DELTA_CURVA_SONRISA   = 0.015   # sonrisa si la curvatura sube esto sobre la neutra
-DELTA_CURVA_TRISTE    = 0.015   # triste si la curvatura baja esto de la neutra
+DELTA_CURVA_SONRISA   = 0.025   # sonrisa si la curvatura sube esto sobre la neutra
+DELTA_CURVA_TRISTE    = 0.025   # triste si la curvatura baja esto de la neutra
+DELTA_GAZE_X          = 0.15    # mirada izq/der si gaze_x se aparta esto del neutro
+
+# Se probo tambien mirada arriba/abajo (gaze_y) y se saco: en hardware real, mirar arriba o
+# abajo mueve el parpado y la ceja lo suficiente como para disparar guinos y cejas levantadas
+# falsos -- es un confundido anatomico, no un umbral mal calibrado, asi que no tiene arreglo
+# ajustando un DELTA. Izquierda/derecha si funciona bien porque mover los ojos a los costados
+# no cambia la apertura del parpado.
 
 VENTANA_SUAVIZADO = 5    # media movil corta: saca el temblor del detector
 
-METRICAS = ("ear_izq", "ear_der", "cejas", "mar", "curva")
+METRICAS = ("ear_izq", "ear_der", "cejas", "mar", "curva", "gaze_x")
+
+# Los dos grupos de landmarks del iris que trae el modelo (478 en total en vez de 468).
+# MediaPipe no dice por su cuenta cual es "izquierdo"/"derecho" de este proyecto -- eso se
+# verifica en _iris_izq_der() contra las esquinas de ojo que ya usa el resto del archivo.
+# Confirmado con test_iris.py: mirando de lado, los dos ojos se mueven en direcciones
+# opuestas de su propia escala, la firma de una mirada conjugada real (no de la cabeza).
+IRIS_A = 468
+IRIS_B = 473
 
 
 # ---------------------------------------------------------------- metricas
@@ -81,14 +96,36 @@ def curvatura_boca(lm):
     y_comisuras = (lm[61].y + lm[291].y) / 2
     return (y_centro - y_comisuras) / escala(lm)
 
+def _iris_izq_der(lm):
+    """Cual de los dos grupos de iris (IRIS_A o IRIS_B) es el ojo izquierdo de este proyecto
+    (esquinas 33/133) y cual el derecho (362/263): el que cae dentro del rango x de cada ojo."""
+    x_izq = sorted((lm[33].x, lm[133].x))
+    if x_izq[0] <= lm[IRIS_A].x <= x_izq[1]:
+        return IRIS_A, IRIS_B
+    return IRIS_B, IRIS_A
+
+def gaze_x(lm):
+    """0 = mirando a la izquierda de la imagen, 1 = a la derecha, ~0.5 = al centro (antes de
+    calibrar contra la cara neutra de cada uno). Combina los dos ojos porque se mueven juntos
+    (mirada conjugada) y promediarlos cancela ruido del detector.
+
+    Cada ojo por separado da 0 en su esquina externa y 1 en la interna (hacia la nariz) -- pero
+    "hacia la nariz" es la DERECHA de la imagen para el ojo izquierdo y la IZQUIERDA para el
+    derecho, asi que hay que invertir uno de los dos antes de promediar."""
+    iris_izq, iris_der = _iris_izq_der(lm)
+    g_izq = (lm[iris_izq].x - lm[33].x)  / (lm[133].x - lm[33].x)   # 0 afuera, 1 hacia la nariz
+    g_der = (lm[iris_der].x - lm[263].x) / (lm[362].x - lm[263].x)  # 0 afuera, 1 hacia la nariz
+    return (g_izq + (1 - g_der)) / 2
+
 def medir(lm):
-    """Las cinco metricas crudas de un frame."""
+    """Las metricas crudas de un frame."""
     return {
         "ear_izq": ear_izquierdo(lm),
         "ear_der": ear_derecho(lm),
         "cejas":   altura_cejas(lm),
         "mar":     mar(lm),
         "curva":   curvatura_boca(lm),
+        "gaze_x":  gaze_x(lm),
     }
 
 
@@ -111,6 +148,8 @@ def umbrales_desde_base(base):
         "ceja_fruncida":   base["cejas"] - DELTA_CEJA_FRUNCIDA,
         "curva_sonrisa":   base["curva"] + DELTA_CURVA_SONRISA,
         "curva_triste":    base["curva"] - DELTA_CURVA_TRISTE,
+        "gaze_izq":        base["gaze_x"] - DELTA_GAZE_X,
+        "gaze_der":        base["gaze_x"] + DELTA_GAZE_X,
     }
 
 
@@ -135,10 +174,20 @@ def estado_boca(mar_val, curva, u):
         return "triste"
     return "neutra"
 
+def estado_mirada(gaze_x_val, u):
+    """Solo tiene sentido con los dos ojos abiertos -- sin iris visible no hay de donde sacar
+    esto (el llamador se encarga de no invocarla si no). Solo el eje horizontal: ver el
+    comentario junto a DELTA_GAZE_X sobre por que se saco el vertical."""
+    if gaze_x_val > u["gaze_der"]:
+        return "derecha"
+    if gaze_x_val < u["gaze_izq"]:
+        return "izquierda"
+    return "centro"
+
 
 # --------------------------------------------------- composicion del sprite
 #
-# Reparto de las 8 filas:
+# Reparto de las 8 filas con los dos ojos abiertos:
 #   0    cejas levantadas
 #   1    cejas normales / fruncidas
 #   2    (separador: sin esta fila, unas cejas normales y unos ojos cerrados quedan pegados
@@ -146,35 +195,63 @@ def estado_boca(mar_val, curva, u):
 #   3    ojos
 #   4    (separador)
 #   5-7  boca
+#
+# Cuando un ojo se cierra, el ojo pasa a ocupar las filas 1-2-3 dibujando un guino ">"/"<":
+# dos puntos exteriores (arriba y abajo) mas uno interior al medio. Usa la fila 1 -- normalmente
+# de cejas -- porque la mitad de la ceja de ESE lado se apaga cuando el ojo cierra (no se dibuja
+# ninguna fila de ceja ahi), asi que queda libre: se ve como si la ceja bajara junto con el
+# parpado, en vez de quedar flotando arriba. Importante: el guino NO puede bajar a la fila 4 en
+# vez de subir a la 1, porque la fila 4 es el separador contra la boca -- pegado ahi, la punta
+# de abajo del guino se funde con las comisuras de la sonrisa (mismas columnas 1 y 6).
 
-def construir_sprite(ojo_izq, ojo_der, cejas, boca):
+def construir_sprite(ojo_izq, ojo_der, cejas, boca, mirada="centro"):
     """Compone la matriz de 8x8 combinando el estado de cada rasgo por separado, en vez de
     elegir entre caritas completas predefinidas."""
     grid = [['0'] * 8 for _ in range(8)]
 
-    # Cejas: arriba = levantadas, abajo = normales, abajo y juntas hacia el centro = fruncidas
-    if cejas == "levantadas":
-        for c in (1, 2, 5, 6):
-            grid[0][c] = '1'
-    elif cejas == "fruncidas":
-        for c in (2, 3, 4, 5):
-            grid[1][c] = '1'
-    else:
-        for c in (1, 2, 5, 6):
-            grid[1][c] = '1'
+    # La mirada se ignora en cuanto CUALQUIER ojo cierra: no tiene sentido mostrar hacia donde
+    # miraba un ojo que ya no se ve, y evita que el punto salte de lugar justo al guinar.
+    if ojo_izq == "cerrado" or ojo_der == "cerrado":
+        mirada = "centro"
 
-    # Ojos: abierto = un punto; cerrado = dos puntos horizontales (el parpado cerrado),
-    # extendiendose hacia afuera de la cara para que quede libre el centro (columnas 3 y 4)
-    # y los dos ojos se sigan leyendo separados, en vez de fundirse en una sola linea.
-    if ojo_izq == "abierto":
-        grid[3][2] = '1'
+    # Cejas: arriba = levantadas, abajo = normales, abajo y juntas hacia el centro = fruncidas.
+    # Las columnas de cada mitad coinciden con las columnas del ojo de ese mismo lado, para que
+    # apagar una mitad cuando ese ojo se cierra se lea como que la ceja "se fue" con el ojo.
+    if cejas == "levantadas":
+        fila_cejas, cols_izq, cols_der = 0, (1, 2), (5, 6)
+    elif cejas == "fruncidas":
+        fila_cejas, cols_izq, cols_der = 1, (2, 3), (4, 5)
     else:
-        grid[3][1] = grid[3][2] = '1'
+        fila_cejas, cols_izq, cols_der = 1, (1, 2), (5, 6)
+
+    if ojo_izq == "abierto":
+        for c in cols_izq:
+            grid[fila_cejas][c] = '1'
+    if ojo_der == "abierto":
+        for c in cols_der:
+            grid[fila_cejas][c] = '1'
+
+    # Ojos: abierto = un punto; cerrado = guino ">" o "<" en tres filas (ver el comentario de
+    # arriba). El punto interior del guino queda en la misma columna que el ojo abierto, asi
+    # que abrir y cerrar el ojo se lee como el mismo punto que se "duplica" hacia afuera.
+    #
+    # Con el ojo abierto, el punto se corre 1 columna segun la mirada -- misma direccion para
+    # los dos ojos, porque en la imagen los dos se mueven juntos hacia el mismo lado.
+    col_desvio = 0
+    if mirada == "derecha":
+        col_desvio = 1
+    elif mirada == "izquierda":
+        col_desvio = -1
+
+    if ojo_izq == "abierto":
+        grid[3][2 + col_desvio] = '1'
+    else:
+        grid[1][1] = grid[2][2] = grid[3][1] = '1'
 
     if ojo_der == "abierto":
-        grid[3][5] = '1'
+        grid[3][5 + col_desvio] = '1'
     else:
-        grid[3][5] = grid[3][6] = '1'
+        grid[1][6] = grid[2][5] = grid[3][6] = '1'
 
     # Boca
     if boca == "abierta":                       # ovalo
@@ -217,6 +294,7 @@ class AnalizadorGestos:
         "ojo_der": "abierto",
         "cejas":   "normal",
         "boca":    "neutra",
+        "mirada":  "centro",
     }
 
     def __init__(self, segundos_calibracion=SEGUNDOS_CALIBRACION,
@@ -244,13 +322,22 @@ class AnalizadorGestos:
         if self.calibrando:
             return self._paso_calibracion(medidas, s)
 
+        ojo_izq = estado_ojo(s["ear_izq"], self.umbrales["ear_izq_cerrado"])
+        ojo_der = estado_ojo(s["ear_der"], self.umbrales["ear_der_cerrado"])
+        # La mirada solo tiene sentido con los dos ojos abiertos (sin iris visible no hay de
+        # donde sacarla); con cualquiera cerrado queda en "centro" -- ver tambien
+        # construir_sprite(), que aplica la misma regla por su cuenta al armar el sprite.
+        ambos_abiertos = ojo_izq == "abierto" and ojo_der == "abierto"
+        mirada = estado_mirada(s["gaze_x"], self.umbrales) if ambos_abiertos else "centro"
+
         return {
             "calibrando": False,
             "progreso":   1.0,
-            "ojo_izq": estado_ojo(s["ear_izq"], self.umbrales["ear_izq_cerrado"]),
-            "ojo_der": estado_ojo(s["ear_der"], self.umbrales["ear_der_cerrado"]),
+            "ojo_izq": ojo_izq,
+            "ojo_der": ojo_der,
             "cejas":   estado_cejas(s["cejas"], self.umbrales),
             "boca":    estado_boca(s["mar"], s["curva"], self.umbrales),
+            "mirada":  mirada,
             "valores": s,
             "base":     self.base,
             "umbrales": self.umbrales,
@@ -307,4 +394,6 @@ def resumen_calibracion(base, umbrales):
         f"  boca MAR  neutro {base['mar']:.3f}  -> abierta si > {umbrales['mar_abierta']:.3f}",
         f"  curvatura neutro {base['curva']:+.4f} -> triste si < {umbrales['curva_triste']:+.4f}"
         f" / sonrisa si > {umbrales['curva_sonrisa']:+.4f}",
+        f"  mirada    neutro {base['gaze_x']:.3f}  -> izq si < {umbrales['gaze_izq']:.3f}"
+        f" / der si > {umbrales['gaze_der']:.3f}",
     ])

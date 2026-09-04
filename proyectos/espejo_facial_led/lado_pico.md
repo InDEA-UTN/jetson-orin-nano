@@ -412,6 +412,8 @@ solución real es subir el archivo que falta, no duplicar los valores en otro la
    31/08** — la Fase 6 quedó cerrada de punta a punta, ver [`integracion.md`](integracion.md).
 2. Fijar una IP reservada para la Pico en el router (o pasar a un router/AP que la sostenga), para
    no tener que reconfirmar la IP en cada sesión.
-3. Si la latencia del router viejo se vuelve un problema con el streaming real del sprite, migrar
-   a otra red (hotspot del celular u otro router) antes de invertir tiempo optimizando el
-   protocolo.
+3. **Latencia del router viejo: probada, no es un problema.** Con el sistema completo mandando
+   sprites por UDP en vivo (ver [`integracion.md`](integracion.md)) la latencia fue baja, no se nota
+   al usar la matriz. El router del laboratorio es viejo y no tiene QoS ni banda de 5 GHz, así que
+   este resultado es el piso: con un AP moderno el delay entre el gesto real y lo que se ve en la
+   matriz sería aún más imperceptible. No amerita migrar de red ni optimizar el protocolo por ahora.
