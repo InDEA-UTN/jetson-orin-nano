@@ -10,6 +10,7 @@
 *.trt
 *.caffemodel
 *.gguf
+*.task
 
 # Imágenes de sistema y archivos de flasheo
 *.img
@@ -30,6 +31,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+*venv/
 .ipynb_checkpoints/
 
 # Credenciales de WiFi u otros datos sensibles de proyectos (ver *.example.py al lado)
@@ -41,3 +43,7 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+
+# Dataset de Kaggle bajado para entrenar el clasificador de abecedario_de_senas: miles de fotos,
+# no se versiona (ver proyectos/abecedario_de_senas/README.md)
+proyectos/abecedario_de_senas/dataset_kaggle/
