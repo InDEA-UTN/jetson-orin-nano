@@ -403,6 +403,8 @@ solución real es subir el archivo que falta, no duplicar los valores en otro la
 | El dibujo salía rotado respecto a la matriz física | Riesgo ya conocido (sección 11 del `README.md`): la orientación depende del montaje físico, no hay forma de saberlo sin probar | Confirmar la rotación necesaria (90° antihoraria) con un dibujo asimétrico, y centralizarla en `show()` de `max7219.py` |
 | `SyntaxError` al editar `max7219.py` a mano, dos veces seguidas | Indentación incorrecta al pegar un método nuevo en medio del archivo (quedaba "adentro" del método anterior) | Reemplazar el archivo completo en vez de pegar fragmentos sueltos |
 | `ImportError: no module named 'wifi_config'` al correr `main.py` | El archivo existía en el repo (PC) pero nunca se había subido a la Pico — MicroPython solo ve su propio sistema de archivos | Subir `wifi_config.py` a la Pico con Archivo → Guardar como → Raspberry Pi Pico |
+| `[CYW43] HT not ready` y `OSError: [Errno 1] EPERM` en la línea del `wlan.connect()` | El chip inalámbrico quedó en mal estado; el reinicio suave de Thonny (`Ctrl+D`) reinicia el intérprete pero no siempre resetea la radio | Ciclo de alimentación real: desenchufar el USB unos segundos y volver a enchufar |
+| `main.py` colgado en el `while not wlan.isconnected()`, sin error | La red era el hotspot de la Jetson levantado en 5 GHz, y la Pico W es **solo 2.4 GHz**: no la ve ni en un `scan()` | Forzar la banda del hotspot a 2.4 GHz — ver [`integracion.md`](integracion.md) sección 11 |
 
 ---
 
@@ -410,8 +412,10 @@ solución real es subir el archivo que falta, no duplicar los valores en otro la
 
 1. ~~**Lado Jetson:** que `jetson_face.py` mande de verdad el sprite que ya calcula.~~ **Hecho el
    31/08** — la Fase 6 quedó cerrada de punta a punta, ver [`integracion.md`](integracion.md).
-2. Fijar una IP reservada para la Pico en el router (o pasar a un router/AP que la sostenga), para
-   no tener que reconfirmar la IP en cada sesión.
+2. Fijar una IP reservada para la Pico, para no tener que reconfirmarla en cada sesión. **Desde el
+   09/09 ya no depende del router del laboratorio:** la Pico se conecta al hotspot de la propia
+   Jetson (ver [`integracion.md`](integracion.md) sección 11), así que la reserva se puede
+   configurar en esa placa en vez de en hardware ajeno.
 3. **Latencia del router viejo: probada, no es un problema.** Con el sistema completo mandando
    sprites por UDP en vivo (ver [`integracion.md`](integracion.md)) la latencia fue baja, no se nota
    al usar la matriz. El router del laboratorio es viejo y no tiene QoS ni banda de 5 GHz, así que

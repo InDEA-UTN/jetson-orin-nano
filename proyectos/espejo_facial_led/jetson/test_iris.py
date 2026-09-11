@@ -3,7 +3,7 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
-MODEL = '/home/indea/face_landmarker.task'
+MODEL = '/home/indea/proyecto_gestos/face_landmarker.task'
 
 options = vision.FaceLandmarkerOptions(
     base_options=python.BaseOptions(model_asset_path=MODEL),

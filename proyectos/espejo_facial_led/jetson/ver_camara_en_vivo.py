@@ -20,7 +20,7 @@ from mediapipe.tasks.python import vision
 
 import gestos
 
-MODEL = '/home/indea/face_landmarker.task'
+MODEL = '/home/indea/proyecto_gestos/face_landmarker.task'
 IP_PC = "192.168.1.101"
 PORT_VIDEO = 1234
 

@@ -410,17 +410,152 @@ dependa de a qué distancia o ángulo esté la cara — mismo principio que `esc
 
 ---
 
-## 10. Próximos pasos
+## 10. El monitor propio de la Jetson: landmarks sin salir de `jetson_face.py` (09/09)
+
+Hasta acá, ver los landmarks en vivo exigía [`ver_camara_en_vivo.py`](jetson/ver_camara_en_vivo.py)
+(sección 4), con todo el rodeo de RTP/UDP hacia una PC — porque se asumía que la Jetson no tenía
+monitor propio a mano. Con un monitor conectado directo a la placa, ese rodeo sobra: `cv2.imshow()`
+puede abrir la ventana ahí mismo, sin codificar ni mandar nada por red.
+
+Se llevó ese dibujo (landmarks + texto de estados + valores crudos con su umbral, la misma
+`texto_con_borde()` que ya tenía el visor) directo a
+[`jetson_face.py`](jetson/jetson_face.py). Ahora un solo proceso hace las dos cosas a la vez: manda
+el sprite por UDP a la matriz **y** muestra la ventana con los landmarks, incluida la barra de
+progreso durante los 3 segundos de calibración. `ver_camara_en_vivo.py` no se tocó — sigue
+sirviendo para cuando la Jetson esté sin monitor a mano y haga falta ver el video desde la PC.
+
+**Detalle no obvio:** `cv2.imshow()` necesita una sesión gráfica local (`DISPLAY` seteado). Una
+sesión SSH normal da una terminal en la Jetson pero no acceso a su pantalla física — hay que
+correr `jetson_face.py` desde una terminal abierta **en el propio escritorio de la Jetson**
+(sentado ahí, con su teclado), no desde el SSH de la PC.
+
+Y aun ahí falló, con `Can't initialize GTK backend`: esa terminal tenía `DISPLAY` vacío, y el
+servidor gráfico de esta placa corre como **`:1`**, no el `:0` que suele ser el default (por eso
+adivinar `:0` tampoco sirvió). El número real se averigua listando los sockets de X:
+
+```bash
+ls /tmp/.X11-unix/    # devuelve X1  ->  el display es :1
+export DISPLAY=:1
+```
+
+---
+
+## 11. La Jetson como punto de acceso WiFi, sin depender del router del laboratorio (09/09)
+
+Pregunta que motivó esto: ¿se puede transmitir de la Jetson a la Pico por WiFi sin un router en el
+medio? El chip WiFi de la Pico W (CYW43439) solo sabe ser **cliente** o **punto de acceso** en
+MicroPython — no existe un modo ad-hoc/WiFi-Direct verdadero. La forma práctica de sacar el router
+de en medio es al revés: convertir la propia **Jetson** en el punto de acceso, y que la Pico se
+conecte a esa red como si fuera cualquier otra.
+
+### Verificar antes de tocar nada: no perder el SSH
+
+Convertir la placa WiFi de la Jetson en hotspot la desconecta de la red en la que estuviera antes
+(`lab-raspi`). Si la sesión SSH desde la PC viajaba por esa misma WiFi, cortarla también corta el
+acceso a la placa. Antes de crear el hotspot se confirmó que había una salida alternativa:
+
+```bash
+nmcli device status
+```
+
+```
+DEVICE            TYPE      STATE                   CONNECTION
+enP8p1s0          ethernet  connected               Wired connection 1
+wlP1p1s0          wifi      connected               lab-raspi
+```
+
+Hay Ethernet conectado (`enP8p1s0`) además de la WiFi (`wlP1p1s0`). Pero eso solo no alcanza: había
+que confirmar por cuál de las dos entraba la sesión SSH que ya estaba abierta:
+
+```bash
+ip -4 -br addr show
+```
+
+```
+wlP1p1s0    UP    192.168.1.102/24
+enP8p1s0    UP    192.168.23.181/24
+```
+
+La IP usada para el SSH (`192.168.23.181`) coincidió con la de Ethernet, no con la de WiFi —
+confirmado que tocar `wlP1p1s0` no iba a cortar nada.
+
+### Crear el hotspot
+
+```bash
+sudo nmcli device wifi hotspot ifname wlP1p1s0 ssid espejo-jetson password "mirador2026"
+```
+
+Esto desconecta `wlP1p1s0` de `lab-raspi` y la deja transmitiendo la red nueva `espejo-jetson`, con
+la Jetson de punto de acceso.
+
+### Por qué la IP queda en `10.42.0.1`
+
+No es una casualidad de esta red ni algo derivado de `lab-raspi`: es la convención fija que usa
+**NetworkManager** para cualquier conexión de tipo "compartida"/hotspot, sin importar la máquina o
+la red — siempre arma la subred `10.42.0.0/24` y deja al host (acá, la Jetson) en el `.1`, con un
+servidor DHCP propio repartiendo el resto del rango a quien se conecte. Viene de ese bloque privado
+(`10.0.0.0/8`, RFC 1918) precisamente porque casi ningún router doméstico o de oficina usa ese rango
+por defecto (suelen usar `192.168.x.x`), así que rara vez choca con la red de la que se viene.
+
+### Mover la Pico a esta red
+
+Del lado de la Pico alcanza con cambiar `SSID`/`PASSWORD` en `wifi_config.py` y resubirlo por
+Thonny. Al arrancar, `main.py` imprime la IP que le asignó el DHCP de la Jetson (salió
+`10.42.0.170`), y esa es la que va en `IP_PICO` de [`jetson_face.py`](jetson/jetson_face.py).
+
+### Trampa real: la Pico no veía la red, por la banda de 5 GHz
+
+Con el hotspot levantado y sano, la Pico se quedaba colgada en el `while not wlan.isconnected()` de
+`main.py`: el chip inicializaba y aceptaba el `connect()`, pero nunca asociaba. La causa es que la
+**Pico W es solo 2.4 GHz**, y al crear un hotspot tanto `nmcli` como el panel de Settings de Ubuntu
+eligen banda y canal por su cuenta — si sale en 5 GHz, la Pico ni siquiera ve la red en un `scan()`.
+Es también por lo que el hotspot armado antes desde Settings no había funcionado.
+
+Se fuerza la banda una vez y queda guardada en el perfil de la conexión:
+
+```bash
+sudo nmcli connection modify Hotspot 802-11-wireless.band bg 802-11-wireless.channel 6
+sudo nmcli connection up Hotspot
+```
+
+Para diagnosticarlo desde la Jetson: `iw dev wlP1p1s0 info` dice en qué frecuencia está (si empieza
+con `5`, es esto), y `iw dev wlP1p1s0 station dump` lista los clientes asociados — vacío significa
+que ninguno enganchó.
+
+---
+
+## 12. Reordenar los archivos en la Jetson, y otras trampas del día (09/09)
+
+Hasta acá los scripts, el modelo `face_landmarker.task` y el venv estaban sueltos en `/home/indea`.
+Se juntaron en `~/proyecto_gestos/` para tener todo el proyecto en un solo lugar. La mudanza rompió
+dos cosas, las dos por rutas absolutas escritas de antemano:
+
+| Problema | Causa | Solución |
+|---|---|---|
+| `ModuleNotFoundError: No module named 'mediapipe'`, con el venv activado y el prompt mostrando `(espejo_facial_venv)` | El script `activate` guarda la ruta del venv como **texto fijo** del momento en que se creó (`VIRTUAL_ENV=/home/indea/espejo_facial_venv`), así que después de mover la carpeta seguía agregando al `PATH` una ruta inexistente. `which python3` lo delata: devolvía `/usr/bin/python3`, el del sistema, en vez del python del venv | Corregir esa ruta dentro de `bin/activate` con `sed`. Los paquetes ya estaban en su lugar, no hizo falta reinstalar nada |
+| `FileNotFoundError: Unable to open file at /home/indea/face_landmarker.task` | La constante `MODEL` de los scripts apuntaba a la ubicación vieja del modelo | Actualizar `MODEL` en `jetson_face.py`, `ver_camara_en_vivo.py` y `test_iris.py` |
+
+Otras dos que aparecieron el mismo día, sin relación con la mudanza:
+
+| Problema | Causa | Solución |
+|---|---|---|
+| El SSH a la Jetson empezó a dar `Connection timed out`, pero el `ping` respondía perfecto | La placa estaba saturada corriendo el script de visión, y `sshd` no conseguía turno para atender conexiones nuevas. El `ping` sigue andando porque lo responde el kernel, sin depender de que haya CPU libre | Cerrar los procesos que quedaron dando vueltas (`pkill -9 -f jetson_face`). El par "ping bien + puerto 22 en timeout" es la firma que distingue esto de un problema de red |
+| En la Pico, `[CYW43] HT not ready` y `OSError: EPERM` al activar la WiFi | El chip inalámbrico quedó en mal estado y el reinicio suave de Thonny (`Ctrl+D`) no lo resetea | Ciclo de alimentación real: desenchufar el USB unos segundos y volver a enchufar |
+
+---
+
+## 13. Próximos pasos
 
 1. **Ajustar los umbrales de los gestos que cuesten** — los `DELTA_*` de
    [`gestos.py`](jetson/gestos.py) están juntos arriba del archivo, comentados. El método:
-   correr el visor, hacer el gesto que no dispara, y mirar en pantalla el valor crudo con su umbral
-   al lado.
+   correr el visor (o ahora, directamente `jetson_face.py` con monitor propio), hacer el gesto que
+   no dispara, y mirar en pantalla el valor crudo con su umbral al lado.
 2. **Probar la calibración con más de una persona** — es justamente lo que debería resolver, pero
    hasta ahora solo se verificó con una cara.
-3. **Fijar una IP reservada para la Pico** en el router (pendiente desde
-   [`lado_pico.md`](lado_pico.md)): hoy la asigna DHCP y cambia entre sesiones, así que hay que
-   editar `IP_PICO` cada vez.
+3. **Dejar fija la IP de la Pico.** Ya no depende del router del laboratorio (sección 11), pero la
+   sigue asignando por DHCP el hotspot de la Jetson: si cambia, hay que volver a editar `IP_PICO`.
+   La ventaja ahora es que el servidor DHCP es la propia placa, así que la reserva se puede
+   configurar sin depender de hardware ajeno.
 4. **El video de 30 segundos** que el `README.md` pide como entregable (sección 13), ahora que el
    sistema completo funciona.
 5. **Mirada vertical**, si se retoma alguna vez: haría falta una métrica que no dependa de la
