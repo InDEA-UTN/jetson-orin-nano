@@ -11,6 +11,7 @@
 *.caffemodel
 *.gguf
 *.task
+*.pkl
 
 # Imágenes de sistema y archivos de flasheo
 *.img
@@ -47,3 +48,12 @@ Thumbs.db
 # Dataset de Kaggle bajado para entrenar el clasificador de abecedario_de_senas: miles de fotos,
 # no se versiona (ver proyectos/abecedario_de_senas/README.md)
 proyectos/abecedario_de_senas/dataset_kaggle/
+
+# Resultado intermedio de esa extracción (vectores ya calculados): se regenera corriendo
+# entrenamiento/extraer_landmarks.py, no hace falta versionarlo
+proyectos/abecedario_de_senas/dataset_landmarks.npz
+
+# Excepción a la regla general de *.pkl de arriba: este es nuestro propio modelo entrenado (KNN,
+# ~1.1 MB), no un binario de terceros -- se versiona a propósito para que alcance con clonar el
+# repo y correr jetson/reconocer_letra.py sin tener que rearmar el dataset y reentrenar de cero.
+!proyectos/abecedario_de_senas/abecedario_modelo.pkl

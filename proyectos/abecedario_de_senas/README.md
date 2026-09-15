@@ -1,10 +1,11 @@
 # Abecedario de Señas LED
 
-**Estado.** Al 07/09/2026: la fase 1 (ver la mano) está verificada en la Jetson. El plan original
-de usar un modelo pre-entrenado por otra persona se abandonó (motivo abajo, sección "Decisiones")
-y se pivotó a entrenar un modelo propio con un dataset público de fotos. **El código de ese
-entrenamiento ya está escrito, pero todavía no se corrió ninguna vez** — es lo primero para
-retomar, ver "Próximos pasos" al final.
+**Estado.** Al 11/09/2026: el modelo ya está entrenado (**95.87%** de precisión sobre el 20% de
+prueba) y probado con éxito en vivo, con la cámara real de la Jetson (`jetson/reconocer_letra.py`).
+El plan original de usar un modelo pre-entrenado por otra persona se abandonó (motivo abajo,
+sección "Decisiones") y se pivotó a entrenar un modelo propio con un dataset público de fotos.
+**Falta la parte de salida**: estabilizador temporal, fuente para la matriz LED y el envío por
+UDP — ver "Fases" y "Próximos pasos" más abajo.
 
 ## Objetivo
 
@@ -94,12 +95,22 @@ Las dos partes comparten `jetson/manos.py` — **tiene que ser el mismo código 
 porque el modelo solo predice bien si el vector que recibe en vivo se calculó exactamente igual
 que los vectores con los que se entrenó.
 
-### `jetson/manos.py` — normalización compartida
+### `jetson/manos.py` — normalización compartida, y de dónde salen los 63 números
 
-Convierte los 21 landmarks 3D de una mano (`hand_world_landmarks` de MediaPipe: coordenadas en
-metros, con profundidad real — necesaria para distinguir letras como M/N/T, donde el pulgar
-queda por delante o por detrás de los demás dedos y en una foto 2D se ven casi iguales) en un
-vector de 63 números, en tres pasos:
+MediaPipe `HandLandmarker` devuelve, por cada mano que detecta, **21 puntos** fijos (0 = muñeca;
+1-4 pulgar, 5-8 índice, 9-12 medio, 13-16 anular, 17-20 meñique, cada dedo de la base a la
+punta). De cada punto usamos `hand_world_landmarks`, no los landmarks "normales" — la diferencia
+importa:
+
+- `hand_landmarks` da coordenadas 0..1 relativas a la imagen (sirven para dibujar sobre el
+  cuadro, pero no traen profundidad real).
+- `hand_world_landmarks` da coordenadas en **metros reales**, con origen en el centro de la
+  mano — sí traen profundidad. Hace falta esa profundidad porque hay letras (M, N, T) que solo
+  se distinguen por dónde queda el pulgar en el eje que "entra" a la pantalla: en una foto 2D
+  esas tres letras se ven casi idénticas.
+
+21 puntos × 3 coordenadas (x, y, z) = **63 números** — ese es el vector crudo. `manos.py` lo
+normaliza en tres pasos antes de que sirva para comparar manos entre sí:
 
 1. Si la mano es izquierda, se espeja (se invierte la coordenada x) — así una misma letra hecha
    con cualquiera de las dos manos cae en el mismo lugar del espacio de vectores.
@@ -119,14 +130,59 @@ todos los vectores válidos junto con su letra en `dataset_landmarks.npz`.
 
 ### `entrenamiento/entrenar.py`
 
-Carga ese `.npz` y entrena un clasificador de **vecinos más cercanos (KNN)**: compara una mano
-nueva contra las muestras guardadas y vota por la letra de las más parecidas — sin "aprendizaje"
-opaco de por medio, siempre se puede ver a qué muestra se pareció una predicción. Separa un 20%
-de las fotos sin usar para entrenar, para medir qué tan bien generaliza. **Ojo con ese número**:
-mide qué tan bien predice sobre más fotos del mismo dataset (mismo estudio, mismo fondo, misma
-distancia a cámara) — no dice nada sobre cómo le va con la cámara real del laboratorio. Eso solo
-se sabe probándolo en vivo, que es la fase siguiente. Guarda el resultado en
-`abecedario_modelo.pkl`.
+Carga ese `.npz` y entrena un clasificador de **vecinos más cercanos (KNN, K=5, `weights="distance"`)**:
+para clasificar una mano nueva mide la distancia contra las 5.575 muestras guardadas y vota por
+la letra de las más parecidas (dándole más peso a las más cercanas) — sin "aprendizaje" opaco de
+por medio, siempre se puede ver a qué muestra se pareció una predicción, mismo espíritu que
+`gestos.py` del espejo facial. Con `train_test_split(..., stratify=y)` separa al azar un 20% de
+los vectores que el modelo **nunca ve** durante el entrenamiento (manteniendo la proporción de
+cada letra), entrena solo con el 80% restante, y mide la precisión preguntando ese 20% que quedó
+afuera — la única forma honesta de saber si generaliza en vez de haber memorizado las respuestas.
+Guarda el resultado en `abecedario_modelo.pkl`.
+
+**Resultado real (11/09): 95.87% de precisión** sobre las 1.115 muestras del 20% de prueba. Del
+`classification_report` completo, lo que vale la pena anotar:
+
+- **M y N** salen algo bajas (recall 0.87 y 0.92) — esperable, ya venían con menos muestras desde
+  la extracción (ver arriba).
+- **U (recall 0.81) y V (recall 0.90)**, con soporte normal (52 y 50 muestras), salieron más
+  bajas que el resto — hipótesis: se confunden entre sí, porque en ASL son geométricamente
+  parecidas (mismos dos dedos extendidos — índice y medio —, difieren solo en el ángulo entre
+  ellos). R (0.91) también quedó algo por debajo del promedio, misma familia de forma de mano.
+- **Ojo con este número igual**: mide qué tan bien predice sobre más fotos del *mismo* dataset
+  (mismo estudio, mismo fondo, misma distancia a cámara) — no dice nada por sí solo de cómo le va
+  con la cámara real del laboratorio. Eso se probó en la fase siguiente (ver "Fases").
+
+## Compatibilidad de versiones entre la PC y la Jetson (trampa real, ya resuelta)
+
+El modelo se entrena en la PC de escritorio pero se usa en la Jetson — dos máquinas con dos
+entornos de Python instalados por separado. `joblib.dump()`/`joblib.load()` no serializan el
+`KNeighborsClassifier` como datos puros: guardan su representación interna de scikit-learn, que
+no es parte de la API pública y puede cambiar entre versiones (lo dice la propia documentación
+de scikit-learn). En la práctica: se entrenó primero con `scikit-learn 1.9.0` en la PC, pero la
+Jetson tenía `1.7.2` instalado — al cargar el `.pkl` ahí, `joblib.load()` no tiraba error, pero sí
+un `InconsistentVersionWarning` ("this might lead to breaking code or invalid results").
+
+Se resolvió **bajando `scikit-learn` a 1.7.2 en el venv de la PC y volviendo a entrenar**, en vez
+de actualizar la Jetson — reentrenar es rápido (segundos) y no toca nada; el venv de la Jetson en
+cambio ya tenía mediapipe/opencv funcionando y arrastra cierta tensión de versiones numpy/scipy
+preexistente, más arriesgado de tocar. Después de igualar la versión, `joblib.load()` en la
+Jetson cargó limpio, sin el warning.
+
+**Antes de copiar un `.pkl` nuevo a la Jetson**, conviene chequear que las versiones coincidan:
+
+```bash
+# en los dos lados, con el venv correspondiente activado
+python3 -c "import sklearn, joblib; print(sklearn.__version__, joblib.__version__)"
+```
+
+Y antes de escribir o correr un script de reconocimiento completo, probar la carga sola, sin
+cámara — aísla "¿el modelo carga bien?" de "¿anda la cámara?", así cualquier falla en la prueba
+en vivo se puede atribuir al problema real que se está investigando (cámara/dominio) y no a esto:
+
+```bash
+python3 -c "import joblib; m = joblib.load('abecedario_modelo.pkl'); print(m)"
+```
 
 ## Fases
 
@@ -135,41 +191,83 @@ se sabe probándolo en vivo, que es la fase siguiente. Guarda el resultado en
    landmarks (incluidos los `world_landmarks` en metros, con profundidad) tienen sentido.
    **Hecho y verificado el 03/09**: mano detectada con confianza 0.93-1.00, `landmarks=21` y
    `world=21` en cada frame. Se vio ruido normal frame a frame (una punta de dedo saltando de
-   golpe en algún frame suelto) — esperable, es lo que el estabilizador de la fase 3 va a
-   filtrar, no bloquea nada.
-2. **Extraer y entrenar.** `entrenamiento/extraer_landmarks.py` + `entrenamiento/entrenar.py` —
-   **escritos el 07/09, todavía sin correr ninguno de los dos.** Ver "Próximos pasos".
-3. Integrar `abecedario_modelo.pkl` en un script de la Jetson: clasificar cada frame en vivo y
-   agregar un estabilizador temporal (repetir la misma letra varios frames seguidos antes de
-   darla por buena) para que no titile con el ruido del detector — mismo rol que la media móvil
-   de `gestos.py` en el espejo facial, pero sobre un valor discreto.
-4. Fuente de 5×7 por letra y armado del sprite de 8 bytes.
-5. Enviar por UDP a la Pico W y confirmar en la matriz real.
+   golpe en algún frame suelto) — esperable, es lo que el estabilizador del paso 5 va a filtrar.
 
-## Próximos pasos (para retomar en la próxima sesión)
+2. **Extraer landmarks.** [`entrenamiento/extraer_landmarks.py`](entrenamiento/extraer_landmarks.py)
+   — **hecho**. De las 7.200 fotos elegidas (300 por letra), quedaron **5.575 vectores válidos**
+   guardados en `dataset_landmarks.npz` (no se versiona, se regenera corriendo el script):
 
-**Todo esto se corre en la PC de escritorio (no en la Jetson) — es la que ya tiene el dataset
-extraído y el entorno armado, en `proyectos/abecedario_de_senas/`:**
-
-1. Activar el entorno ya creado y correr la extracción (tarda: procesa ~7.200 fotos con
-   MediaPipe, una por una):
-   ```bash
-   cd proyectos/abecedario_de_senas
-   source entrenamiento_venv/bin/activate
-   python3 entrenamiento/extraer_landmarks.py
    ```
-   Mirar que el resumen final no tenga letras en cero ni con muchas "descartadas por escala
-   degenerada" — si pasa, revisar antes de seguir.
-2. Entrenar con el resultado:
-   ```bash
-   python3 entrenamiento/entrenar.py
+   A:217  B:221  C:198  D:252  E:232  F:286  G:234  H:235
+   I:230  K:276  L:250  M:155  N:129  O:231  P:205  Q:221
+   R:263  S:260  T:242  U:259  V:248  W:245  X:225  Y:261
    ```
-   Mirar el `classification_report` — si alguna letra sale mal en el 20% de prueba (mismo
-   dataset), va a salir peor todavía con la cámara real; son las primeras candidatas a fallar en
-   la fase siguiente.
-3. Con `abecedario_modelo.pkl` generado, escribir el script de la fase 3 (recién ahí, sobre la
-   Jetson): cargar el modelo + `manos.py`, clasificar en vivo con la cámara, y el estabilizador
-   temporal.
+
+   **M y N quedaron bastante por debajo del resto** (155 y 129, contra un promedio de ~232) —
+   son justo las letras donde el pulgar queda escondido detrás de los demás dedos, y esa
+   oclusión también le cuesta al detector en la foto 2D del dataset, no solo a la cámara real.
+
+3. **Entrenar.** [`entrenamiento/entrenar.py`](entrenamiento/entrenar.py) — **hecho, 95.87% de
+   precisión.** Ver el detalle completo y las letras que salieron más flojas (M, N, U, V, R) en
+   la sección de arriba.
+
+4. **Llevar el modelo a la Jetson y probarlo en vivo.** [`jetson/reconocer_letra.py`](jetson/reconocer_letra.py)
+   — **hecho y probado con éxito.** Carga `manos.py` + `abecedario_modelo.pkl` y clasifica cada
+   frame de la cámara real (por SSH, sin guardar nada en disco: ni imágenes ni video, solo
+   imprime la letra por consola). En la prueba real, **U, V y R —las candidatas sospechosas del
+   `classification_report`— se reconocieron bien**; el riesgo grande de esta fase (que el modelo,
+   entrenado sobre fotos de estudio, no generalizara a mano/luz/fondo reales de laboratorio) no
+   se confirmó tan grave como se temía. En el camino se encontró y resolvió un desfasaje de
+   versión de scikit-learn entre la PC y la Jetson — ver la sección de arriba.
+
+5. **Estabilizador temporal.** *Pendiente.* Exigir que la misma letra se repita varios frames
+   seguidos antes de darla por "confirmada", para que el ruido frame a frame del detector (ya
+   visto en el paso 1) no haga titilar la matriz entre letras ni llene el texto de letras
+   fantasma. Mismo rol que la media móvil de `gestos.py` en el espejo facial, pero sobre un valor
+   discreto (contar repeticiones) en vez de un promedio continuo.
+
+6. **Fuente de 5×7 y sprite por letra.** *Pendiente.* Un dibujo de cada letra en una grilla de 5
+   columnas × 7 filas (con 1 columna libre para centrar en la matriz de 8×8) — igual a como
+   `gestos.py` del espejo facial dibuja cejas/ojos/boca con puntos. Es trabajo de diseño visual,
+   no de machine learning: elegir, para cada letra, la representación más legible a un tamaño tan
+   chico.
+
+7. **Enviar por UDP a la Pico W.** *Pendiente, pero sin nada nuevo que programar de ese lado*:
+   el protocolo de 8 bytes (un byte por fila, bit 7 = píxel izquierdo) ya está armado y probado
+   en el espejo facial — se reusan [`../espejo_facial_led/pico/main.py`](../espejo_facial_led/pico/main.py)
+   y [`max7219.py`](../espejo_facial_led/pico/max7219.py) tal cual.
+
+8. **Prueba de punta a punta y ajuste fino.** *Pendiente.* Mostrar letras reales frente a la
+   Jetson y ver qué aparece en la matriz; ajustar lo que falle (subir `MUESTRAS_POR_LETRA` si una
+   letra anda mal, tocar el número de frames del estabilizador, etc.) — recién ahí, iterando
+   sobre datos reales de la placa completa, no sobre suposiciones.
+
+## Qué queda por mejorar
+
+- **M y N** son las primeras candidatas a fallar en el uso real (menos muestras desde la
+  extracción). Primer remedio a probar: subir `MUESTRAS_POR_LETRA` en `extraer_landmarks.py`
+  (hoy en 300) para esas letras, o para todas.
+- **U, V y R** salieron algo flojas en el `classification_report` por ser geométricamente
+  parecidas entre sí — en la prueba en vivo anduvieron bien, pero falta una prueba más
+  sistemática (mostrar cada una varias veces seguidas y contar aciertos) antes de darlas por
+  confirmadas del todo.
+- El estabilizador temporal (paso 5) todavía no existe — sin él, la matriz de LEDs va a titilar
+  con el ruido normal del detector en cuanto se conecte esa parte.
+- Si en algún momento se agrega reconocimiento de **J y Z** (las dos letras con movimiento que
+  quedaron afuera de esta v1), hace falta repensar el pipeline: ya no alcanza con clasificar un
+  frame quieto, hay que clasificar una ventana de varios frames.
+
+## Próximos pasos (para retomar la próxima sesión)
+
+En este orden, todo del lado de la Jetson (el entrenamiento en la PC de escritorio ya no hace
+falta repetirlo, salvo que se decida subir `MUESTRAS_POR_LETRA` para M/N):
+
+1. Paso 5 — estabilizador temporal en `jetson/reconocer_letra.py` (o un script nuevo que lo
+   envuelva).
+2. Paso 6 — diseñar la fuente 5×7 de las 24 letras.
+3. Paso 7 — armar el sprite de 8 bytes por letra y enviarlo por UDP a la Pico W (reusando el
+   protocolo del espejo facial).
+4. Paso 8 — prueba de punta a punta con la matriz real y ajuste fino.
 
 ## Notas del entorno (para no reinstalar de cero)
 
@@ -187,3 +285,22 @@ excluido de git (`.gitignore`) por pesado — si hay que rearmarlo desde cero en
 
 Se intentó correr el entrenamiento en otra PC del laboratorio para no ocupar esta — no anduvo
 (no se investigó por qué, no bloqueó nada) y se volvió a hacer todo en esta misma máquina.
+
+**Del lado de la Jetson**, además de lo que ya usaba `probar_manos.py` (mediapipe, opencv,
+`hand_landmarker.task` en `/home/indea/hand_landmarker.task`), `reconocer_letra.py` necesita en
+el mismo venv (`espejo_facial_venv`, según se armó en la práctica):
+
+```bash
+pip install "scikit-learn==1.7.2" joblib
+```
+
+**Importante**: esa versión de scikit-learn tiene que coincidir con la que se usó para generar
+`abecedario_modelo.pkl` en la PC de escritorio — ver la sección "Compatibilidad de versiones"
+más arriba antes de reentrenar con una versión distinta.
+
+**Trampa real encontrada (11/09):** al mover/copiar archivos del proyecto apareció una carpeta
+duplicada `proyectos/abecedario_de_senas (2)/`, con una copia vieja del dataset de Kaggle sin
+`.gitignore` que la cubriera — casi termina commiteada entera (~2 GB) con un `git add .` sin
+revisar antes qué iba a entrar. Se encontró y se borró a tiempo. **Antes de cualquier `git add`
+en este proyecto, correr `git status` y revisar que no haya rutas raras o pesadas en la lista**
+— con datasets de por medio, un `git add .` a ciegas es peligroso.
