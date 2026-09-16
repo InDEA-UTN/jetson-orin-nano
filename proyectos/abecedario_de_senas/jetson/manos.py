@@ -14,12 +14,22 @@ import numpy as np
 MUNECA = 0
 NUDILLO_MEDIO = 9
 
-# --- Que letras se reconocen ---
-# ASL tiene 26 letras, pero J y Z se hacen con MOVIMIENTO (se dibuja la letra en el aire) y este
-# sistema clasifica una foto/frame quieto por vez: un solo frame no alcanza para distinguirlas.
-# Quedan afuera a proposito (ver ../README.md). Coincide con los nombres de carpeta del dataset
-# de Kaggle, salvo 'del'/'nothing'/'space', que tampoco son letras y no se usan.
-LETRAS = tuple("ABCDEFGHIKLMNOPQRSTUVWXY")
+# --- Que etiquetas se reconocen ---
+# Las 26 letras de ASL mas dos "comandos" de edicion que el dataset de Kaggle trae como carpetas
+# propias: 'space' (escribir un espacio) y 'del' (borrar el ultimo caracter). Con esos dos se
+# puede escribir texto de corrido en vez de reconocer letras sueltas. Los nombres coinciden con
+# los de las carpetas del dataset, porque extraer_landmarks.py los usa para buscarlas.
+#
+# OJO con J y Z: en ASL se hacen dibujando la letra en el aire (MOVIMIENTO), y este sistema
+# clasifica un frame quieto por vez. Se incluyen igual porque el dataset trae fotos fijas de
+# ellas, pero una foto fija solo captura un instante del gesto -- la J arranca con la misma forma
+# de mano que la I -- asi que son las primeras candidatas a confundirse. Mirar J, Z e I en el
+# classification_report antes de darlas por buenas (ver ../README.md).
+#
+# 'nothing' (fondo sin mano) queda afuera a proposito: no hay mano, MediaPipe no devuelve
+# landmarks y no habria vector que guardar. El caso "no hay mano" ya se resuelve en vivo mirando
+# si el detector devolvio landmarks o no.
+LETRAS = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + ("del", "space")
 
 
 def vector_normalizado(world_landmarks, mano):
@@ -56,8 +66,12 @@ def vector_normalizado(world_landmarks, mano):
 
 
 def guardar_dataset(ruta, X, y):
-    """X: (N, 63) float32, un vector normalizado por muestra. y: (N,) con la letra de cada una."""
-    np.savez(ruta, X=np.asarray(X, dtype=np.float32), y=np.asarray(y, dtype="<U1"))
+    """X: (N, 63) float32, un vector normalizado por muestra. y: (N,) con la etiqueta de cada una.
+
+    El dtype es "<U5" y no "<U1" porque las etiquetas ya no son siempre de un caracter: 'del' y
+    'space' entran en LETRAS. Con "<U1" numpy las truncaria a 'd' y 's' SIN avisar.
+    """
+    np.savez(ruta, X=np.asarray(X, dtype=np.float32), y=np.asarray(y, dtype="<U5"))
 
 
 def cargar_dataset(ruta):
@@ -70,7 +84,8 @@ def resumen_dataset(y):
     lineas = []
     for letra in LETRAS:
         n = int(np.count_nonzero(y == letra))
-        lineas.append(f"{letra}:{n:<5}")
+        # Ancho fijo por columna: las etiquetas ya no miden todas lo mismo ('A' vs 'space').
+        lineas.append(f"{letra:>5}:{n:<5}")
     salida = ["  " + "".join(lineas[i:i + 8]) for i in range(0, len(lineas), 8)]
     salida.append(f"  total: {len(y)} muestras")
     return "\n".join(salida)

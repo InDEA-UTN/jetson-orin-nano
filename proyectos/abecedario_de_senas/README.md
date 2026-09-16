@@ -1,11 +1,15 @@
 # Abecedario de Señas LED
 
-**Estado.** Al 11/09/2026: el modelo ya está entrenado (**95.87%** de precisión sobre el 20% de
-prueba) y probado con éxito en vivo, con la cámara real de la Jetson (`jetson/reconocer_letra.py`).
-El plan original de usar un modelo pre-entrenado por otra persona se abandonó (motivo abajo,
-sección "Decisiones") y se pivotó a entrenar un modelo propio con un dataset público de fotos.
-**Falta la parte de salida**: estabilizador temporal, fuente para la matriz LED y el envío por
-UDP — ver "Fases" y "Próximos pasos" más abajo.
+**Estado.** Al 15/09/2026: el modelo ya está entrenado (**95.92%** de precisión sobre el 20% de
+prueba) y probado con éxito en vivo, con la cámara real de la Jetson
+(`jetson/reconocer_letra.py`), que ahora también dibuja los landmarks en una ventana, estabiliza
+la letra reconocida en el tiempo y va escribiendo un texto de corrido (sin probar todavía contra
+la Jetson real). **El alcance se amplió a 28 etiquetas** — se sumaron J y Z (como poses
+estáticas) y `space`/`del` como comandos de edición — y el modelo ya se reentrenó con todas:
+**95.92%**, sin degradarse respecto de las 24 anteriores. El plan original de
+usar un modelo pre-entrenado por otra persona se abandonó (motivo abajo, sección "Decisiones") y
+se pivotó a entrenar un modelo propio con un dataset público de fotos. **Falta la parte de
+salida**: fuente para la matriz LED y el envío por UDP — ver "Fases" y "Próximos pasos" más abajo.
 
 ## Objetivo
 
@@ -16,7 +20,7 @@ Pi Pico W (WiFi + matriz MAX7219), y el mismo protocolo UDP de 8 bytes entre las
 
 Es un proyecto separado del espejo facial porque el problema de fondo es otro: ahí se
 cuantizaban gestos de cara con reglas simples sobre 1-2 métricas (EAR, MAR); acá hay que
-clasificar 24 poses de mano distintas a partir de 21 puntos cada una, que es un problema de
+clasificar 28 poses de mano distintas a partir de 21 puntos cada una, que es un problema de
 clasificación, no de umbrales a mano — ver "Por qué un clasificador y no reglas" más abajo.
 
 ## Decisiones de alcance ya tomadas
@@ -24,19 +28,48 @@ clasificación, no de umbrales a mano — ver "Por qué un clasificador y no reg
 - **Abecedario: ASL (americano), no LSA.** 26 letras. Es el alfabeto con más documentación y
   material de referencia disponible — más fácil de hacer andar bien en una primera versión que
   LSA.
-- **V1: solo letras estáticas — 24 de las 26.** Un solo frame de la mano, sin ventana temporal.
-  **J y Z quedan afuera**, porque en ASL se hacen dibujando la letra en el aire (movimiento): un
-  solo frame no alcanza para distinguirlas. Quedan anotadas como fase futura si se agrega
-  reconocimiento de movimiento (una ventana temporal de varios frames en vez de uno solo).
+- **28 etiquetas: las 26 letras + `space` y `del`.** Un solo frame de la mano por vez, sin
+  ventana temporal. `space` y `del` son dos carpetas más que trae el dataset de Kaggle y no son
+  letras sino **comandos de edición**: escribir un espacio y borrar el último carácter. Con esos
+  dos, el reconocimiento deja de ser "letras sueltas" y se puede escribir texto de corrido.
+  `nothing` (fondo sin mano) sí queda afuera: no hay mano que detectar, MediaPipe no devuelve
+  landmarks y no habría vector que guardar — ese caso ya se resuelve en vivo mirando si el
+  detector encontró algo o no.
+- **J y Z entran, pero bajo sospecha.** En ASL las dos se hacen dibujando la letra en el aire
+  (movimiento), y este sistema clasifica un frame quieto por vez. Se incluyen igual porque el
+  dataset trae fotos fijas de ellas y el costo de probarlas es bajo (dos etiquetas más en la
+  lista, nada de código nuevo), pero una foto fija solo captura un instante del gesto — la J
+  arranca con la misma forma de mano que la I — así que **hay que mirar J, Z e I en el
+  `classification_report` antes de darlas por buenas**. Si meten ruido a la I, que hoy anda bien,
+  conviene sacarlas de `manos.LETRAS` y volver a las 26 etiquetas.
 
 ## Por qué un clasificador y no reglas escritas a mano
 
-En el espejo facial cada gesto era una regla simple ("boca abierta si MAR > umbral"), viable con
-4-5 gestos. Acá son 24 poses definidas por la posición relativa de 21 puntos (63 números);
-escribir 24 reglas que no se pisen entre sí es inviable, y una regla a mano no generaliza bien a
-manos de distinto tamaño o ángulo. Un clasificador resuelve eso comparando una mano nueva contra
-ejemplos ya etiquetados, en vez de contra umbrales fijos — para eso hace falta un **dataset**:
-un conjunto de ejemplos (mano → letra correcta) del que "aprender" comparando.
+En el espejo facial cada gesto era una regla simple sobre 1-2 números ("boca abierta si MAR >
+umbral"): una sola frontera en una línea numérica, viable a ojo con 4-5 gestos.
+
+Acá el problema es distinto en tamaño, no solo en cantidad de letras. Cada letra es una pose
+definida por la posición relativa de 21 puntos (63 números: x, y, z de cada uno), y hay que
+repartir ese espacio de 63 números en 28 zonas —una por etiqueta— sin que ninguna se pise con otra
+(que una misma mano cumpla la regla de dos letras a la vez) ni queden huecos sin cubrir. Con 1
+número y 2 categorías eso es un solo corte trivial; con 63 números y 28 categorías, las fronteras
+entre letras parecidas cruzan varias de esas dimensiones a la vez y ya no se pueden imaginar ni
+calcular a mano.
+
+Ejemplos reales del propio dataset: **M, N y T se distinguen solo por si el pulgar queda apenas
+adelante o apenas atrás de los demás dedos** —una sola de las 63 coordenadas, en un rango
+angosto— y **U y V solo por el ángulo entre dos dedos extendidos**. Encontrar a mano el umbral
+exacto que separe cada uno de esos pares, sin pisar la zona de otra letra, ya es durísimo para un
+solo par; son 28 etiquetas. Y aunque se encontrara ese umbral mirando una mano puntual, no
+generalizaría: una mano más grande, o la misma mano rotada un poco, corre el valor de esa
+coordenada, así que un número fijo calibrado a una sola mano falla con otra.
+
+Un clasificador resuelve esto sin que un humano tenga que inventar esas 28 fronteras: guarda
+muchos ejemplos ya etiquetados (mano → letra correcta) y, ante una mano nueva, mide a cuáles se
+parece más, en vez de compararla contra un umbral fijo que alguien adivinó. La frontera entre M y
+N queda definida implícitamente por dónde caen los ejemplos reales de cada una en ese espacio de
+63 números, no por una fórmula. Para eso hace falta un **dataset**: un conjunto de esos ejemplos
+del que "aprender" comparando.
 
 ## Decisiones sobre el clasificador (con el porqué de cada giro)
 
@@ -67,7 +100,8 @@ mismo callejón sin salida:
    laboratorio. Nuestra normalización elimina esa dependencia.
 4. **Lo único que se sigue reutilizando de ese hallazgo es el dataset de fotos**, no el código:
    [Kaggle "ASL Alphabet"](https://www.kaggle.com/datasets/grassknoted/asl-alphabet) (usuario
-   `grassknoted`) — 29 carpetas (26 letras + `del`/`nothing`/`space`, que no se usan), 3000 fotos
+   `grassknoted`) — 29 carpetas (26 letras + `del`/`space`, que se usan como comandos de
+   edición, y `nothing`, que no), 3000 fotos
    por letra, estructura `asl_alphabet_train/asl_alphabet_train/<letra>/*.jpg` (la carpeta
    duplicada es así en el ZIP original de Kaggle, no es un error de descarga). Es la materia
    prima cara de conseguir (miles de fotos ya etiquetadas a mano por otra persona); el
@@ -123,16 +157,17 @@ son la misma forma de dedos apuntando en distinta dirección).
 
 ### `entrenamiento/extraer_landmarks.py`
 
-Recorre las 24 carpetas de letras del dataset de Kaggle, toma una muestra de fotos de cada una
-(300 por letra por defecto — un número chico a propósito para el primer intento; subirlo después
-es cambiar una constante y volver a correr), les aplica `HandLandmarker` + `manos.py`, y guarda
-todos los vectores válidos junto con su letra en `dataset_landmarks.npz`.
+Recorre las 28 carpetas del dataset de Kaggle listadas en `manos.LETRAS`, toma una muestra de
+fotos de cada una (300 por etiqueta por defecto — un número chico a propósito para el primer
+intento; subirlo después es cambiar una constante y volver a correr), les aplica
+`HandLandmarker` + `manos.py`, y guarda todos los vectores válidos junto con su etiqueta en
+`dataset_landmarks.npz`.
 
 ### `entrenamiento/entrenar.py`
 
 Carga ese `.npz` y entrena un clasificador de **vecinos más cercanos (KNN, K=5, `weights="distance"`)**:
-para clasificar una mano nueva mide la distancia contra las 5.575 muestras guardadas y vota por
-la letra de las más parecidas (dándole más peso a las más cercanas) — sin "aprendizaje" opaco de
+para clasificar una mano nueva mide la distancia contra las miles de muestras guardadas y vota
+por la etiqueta de las más parecidas (dándole más peso a las más cercanas) — sin "aprendizaje" opaco de
 por medio, siempre se puede ver a qué muestra se pareció una predicción, mismo espíritu que
 `gestos.py` del espejo facial. Con `train_test_split(..., stratify=y)` separa al azar un 20% de
 los vectores que el modelo **nunca ve** durante el entrenamiento (manteniendo la proporción de
@@ -140,15 +175,26 @@ cada letra), entrena solo con el 80% restante, y mide la precisión preguntando 
 afuera — la única forma honesta de saber si generaliza en vez de haber memorizado las respuestas.
 Guarda el resultado en `abecedario_modelo.pkl`.
 
-**Resultado real (11/09): 95.87% de precisión** sobre las 1.115 muestras del 20% de prueba. Del
-`classification_report` completo, lo que vale la pena anotar:
+**Resultado real (15/09, 28 etiquetas): 95.92% de precisión** sobre las 1.275 muestras del 20%
+de prueba. La corrida anterior, con 24 letras, había dado 95.87% sobre 1.115 — o sea que **sumar
+4 clases nuevas no degradó nada**. Del `classification_report` completo, lo que vale la pena
+anotar:
 
-- **M y N** salen algo bajas (recall 0.87 y 0.92) — esperable, ya venían con menos muestras desde
-  la extracción (ver arriba).
-- **U (recall 0.81) y V (recall 0.90)**, con soporte normal (52 y 50 muestras), salieron más
-  bajas que el resto — hipótesis: se confunden entre sí, porque en ASL son geométricamente
-  parecidas (mismos dos dedos extendidos — índice y medio —, difieren solo en el ángulo entre
-  ellos). R (0.91) también quedó algo por debajo del promedio, misma familia de forma de mano.
+- **J (1.00/0.96) y Z (1.00/1.00) quedaron entre las mejores**, y la I —la que se temía que
+  sufriera, porque la J arranca con su misma forma de mano— apenas se movió (0.98/1.00, antes
+  1.00/1.00). La sospecha no se confirmó *dentro del dataset*. Pero cuidado con leer de más ese
+  1.00: las fotos de Kaggle para J y Z capturan siempre el mismo instante del gesto, así que el
+  número prueba que esas fotos son separables entre sí, no que la letra se reconozca al hacerla
+  de verdad (al ser movimiento, la mano recorre varias poses y el clasificador dispara letras en
+  el camino).
+- **`del` (0.93/1.00) y `space` (0.94/0.97)** entraron sin problema, aunque `space` fue la
+  etiqueta con menos fotos válidas de todas (152 de 300).
+- **U (0.83/0.86), V (0.88/0.88) y R (0.91/0.86)** siguen siendo las más flojas, igual que en la
+  corrida anterior — hipótesis: se confunden entre sí, porque en ASL son geométricamente
+  parecidas (mismos dos dedos extendidos — índice y medio —, difieren en el ángulo entre ellos y
+  en si se cruzan). **M y N** rondan 0.89, esperable por venir con menos muestras desde la
+  extracción. Entre corridas M y N intercambiaron precision y recall: es ruido de muestreo (el
+  20% de prueba es otro), no una señal.
 - **Ojo con este número igual**: mide qué tan bien predice sobre más fotos del *mismo* dataset
   (mismo estudio, mismo fondo, misma distancia a cámara) — no dice nada por sí solo de cómo le va
   con la cámara real del laboratorio. Eso se probó en la fase siguiente (ver "Fases").
@@ -194,37 +240,53 @@ python3 -c "import joblib; m = joblib.load('abecedario_modelo.pkl'); print(m)"
    golpe en algún frame suelto) — esperable, es lo que el estabilizador del paso 5 va a filtrar.
 
 2. **Extraer landmarks.** [`entrenamiento/extraer_landmarks.py`](entrenamiento/extraer_landmarks.py)
-   — **hecho**. De las 7.200 fotos elegidas (300 por letra), quedaron **5.575 vectores válidos**
-   guardados en `dataset_landmarks.npz` (no se versiona, se regenera corriendo el script):
+   — **hecho** (rehecho con 28 etiquetas). De las 8.400 fotos elegidas (300 por etiqueta),
+   quedaron **6.375 vectores válidos** guardados en `dataset_landmarks.npz` (no se versiona, se
+   regenera corriendo el script):
 
    ```
-   A:217  B:221  C:198  D:252  E:232  F:286  G:234  H:235
-   I:230  K:276  L:250  M:155  N:129  O:231  P:205  Q:221
-   R:263  S:260  T:242  U:259  V:248  W:245  X:225  Y:261
+       A:217      B:221      C:198      D:252      E:232      F:286      G:234      H:235
+       I:230      J:267      K:271      L:261      M:164      N:137      O:227      P:213
+       Q:211      R:248      S:251      T:233      U:248      V:252      W:236      X:222
+       Y:264      Z:230    del:183  space:152
    ```
 
-   **M y N quedaron bastante por debajo del resto** (155 y 129, contra un promedio de ~232) —
-   son justo las letras donde el pulgar queda escondido detrás de los demás dedos, y esa
-   oclusión también le cuesta al detector en la foto 2D del dataset, no solo a la cámara real.
+   **M, N y `space` quedaron bastante por debajo del resto** (164, 137 y 152, contra un promedio
+   de ~230). En M y N es por el pulgar escondido detrás de los demás dedos: esa oclusión también
+   le cuesta al detector en la foto 2D del dataset, no solo a la cámara real.
 
-3. **Entrenar.** [`entrenamiento/entrenar.py`](entrenamiento/entrenar.py) — **hecho, 95.87% de
-   precisión.** Ver el detalle completo y las letras que salieron más flojas (M, N, U, V, R) en
-   la sección de arriba.
+3. **Entrenar.** [`entrenamiento/entrenar.py`](entrenamiento/entrenar.py) — **hecho, 95.92% de
+   precisión** con las 28 etiquetas (antes: 95.87% con 24). Agregar 4 clases nuevas no degradó
+   nada. Lo llamativo: **J y Z quedaron entre las mejores** (1.00/0.96 y 1.00/1.00) y la I casi
+   no se movió (0.98/1.00, antes 1.00/1.00), así que la sospecha de que la J le robara muestras a
+   la I no se confirmó — **en el dataset**. Ojo con leer de más ese 1.00: mide que las fotos de J
+   de Kaggle (siempre el mismo instante del gesto) son separables de las otras fotos de Kaggle.
+   No dice nada de qué pasa cuando alguien hace la J de verdad frente a la cámara: al ser un
+   movimiento, la mano pasa por varias poses en el camino y el clasificador va a disparar letras
+   en esa transición. `del` (0.93/1.00) y `space` (0.94/0.97) también entraron bien. Las flojas
+   siguen siendo las mismas de antes: **U (0.83/0.86), V (0.88/0.88), R (0.91/0.86) y M/N (~0.89)**.
 
 4. **Llevar el modelo a la Jetson y probarlo en vivo.** [`jetson/reconocer_letra.py`](jetson/reconocer_letra.py)
    — **hecho y probado con éxito.** Carga `manos.py` + `abecedario_modelo.pkl` y clasifica cada
-   frame de la cámara real (por SSH, sin guardar nada en disco: ni imágenes ni video, solo
-   imprime la letra por consola). En la prueba real, **U, V y R —las candidatas sospechosas del
+   frame de la cámara real. En la prueba real, **U, V y R —las candidatas sospechosas del
    `classification_report`— se reconocieron bien**; el riesgo grande de esta fase (que el modelo,
    entrenado sobre fotos de estudio, no generalizara a mano/luz/fondo reales de laboratorio) no
    se confirmó tan grave como se temía. En el camino se encontró y resolvió un desfasaje de
    versión de scikit-learn entre la PC y la Jetson — ver la sección de arriba.
 
-5. **Estabilizador temporal.** *Pendiente.* Exigir que la misma letra se repita varios frames
-   seguidos antes de darla por "confirmada", para que el ruido frame a frame del detector (ya
-   visto en el paso 1) no haga titilar la matriz entre letras ni llene el texto de letras
+5. **Estabilizador temporal, con ventana de landmarks.** [`jetson/reconocer_letra.py`](jetson/reconocer_letra.py)
+   — **hecho.** Mismo script de la fase anterior, ampliado con dos cosas: una ventana local
+   (`cv2.imshow`, mismo patrón que `jetson_face.py` del espejo facial) que dibuja los 21
+   landmarks sobre el video y muestra en texto tanto la letra cruda del frame como la ya
+   confirmada — ya no corre "a ciegas" por SSH, necesita un monitor conectado a la Jetson — y la
+   clase `EstabilizadorLetra`, que exige que la misma letra cruda se repita `UMBRAL_ESTABLE`
+   frames seguidos (8 por defecto) antes de escribirla, para que el ruido frame a frame del
+   detector (ya visto en el paso 1) no haga titilar la letra ni llene la consola de letras
    fantasma. Mismo rol que la media móvil de `gestos.py` en el espejo facial, pero sobre un valor
-   discreto (contar repeticiones) en vez de un promedio continuo.
+   discreto (contar repeticiones) en vez de un promedio continuo. Sostener la misma letra
+   `UMBRAL_REPETICION` frames más la vuelve a escribir (auto-repeat, como mantener una tecla),
+   que es lo que permite escribir "CALLE" o borrar varios caracteres con `del`. **Falta la prueba
+   real** frente a la Jetson para calibrar esos números (paso 8).
 
 6. **Fuente de 5×7 y sprite por letra.** *Pendiente.* Un dibujo de cada letra en una grilla de 5
    columnas × 7 filas (con 1 columna libre para centrar en la matriz de 8×8) — igual a como
@@ -251,23 +313,29 @@ python3 -c "import joblib; m = joblib.load('abecedario_modelo.pkl'); print(m)"
   parecidas entre sí — en la prueba en vivo anduvieron bien, pero falta una prueba más
   sistemática (mostrar cada una varias veces seguidas y contar aciertos) antes de darlas por
   confirmadas del todo.
-- El estabilizador temporal (paso 5) todavía no existe — sin él, la matriz de LEDs va a titilar
-  con el ruido normal del detector en cuanto se conecte esa parte.
-- Si en algún momento se agrega reconocimiento de **J y Z** (las dos letras con movimiento que
-  quedaron afuera de esta v1), hace falta repensar el pipeline: ya no alcanza con clasificar un
-  frame quieto, hay que clasificar una ventana de varios frames.
+- El estabilizador temporal (paso 5) ya está escrito (`EstabilizadorLetra`, `UMBRAL_ESTABLE=8`)
+  pero todavía no se probó frente a la Jetson real — falta confirmar si ese número de frames es
+  un buen punto de partida o hace falta subirlo/bajarlo (paso 8).
+- **J y Z** pasaron el examen del dataset con nota alta (1.00/0.96 y 1.00/1.00) sin arruinar la
+  I, pero eso solo prueba que las fotos de Kaggle son separables entre sí. **Falta la prueba en
+  vivo**, que es la que puede fallar: al hacerlas de verdad la mano recorre varias poses y el
+  clasificador va a ir disparando letras durante el movimiento. Reconocerlas *bien* sigue siendo
+  otro problema — habría que clasificar una ventana de varios frames en vez de uno quieto.
+- Las **letras repetidas** ("CALLE") y borrar varios caracteres se resolvieron con auto-repeat
+  por sostenido (`UMBRAL_REPETICION`, 16 frames), como mantener una tecla apretada. Falta
+  calibrar ese número contra la cámara real: muy bajo hace que se dupliquen letras mientras uno
+  piensa, muy alto lo vuelve incómodo.
 
 ## Próximos pasos (para retomar la próxima sesión)
 
-En este orden, todo del lado de la Jetson (el entrenamiento en la PC de escritorio ya no hace
-falta repetirlo, salvo que se decida subir `MUESTRAS_POR_LETRA` para M/N):
-
-1. Paso 5 — estabilizador temporal en `jetson/reconocer_letra.py` (o un script nuevo que lo
-   envuelva).
-2. Paso 6 — diseñar la fuente 5×7 de las 24 letras.
-3. Paso 7 — armar el sprite de 8 bytes por letra y enviarlo por UDP a la Pico W (reusando el
+1. **Copiar a la Jetson el `abecedario_modelo.pkl` nuevo** (el de 28 etiquetas) y el
+   `reconocer_letra.py` actualizado, y probar en vivo: si J y Z sobreviven al movimiento real
+   (ver la advertencia en la fase 3), si se puede escribir una palabra usando `space`/`del`, y si
+   `UMBRAL_ESTABLE` / `UMBRAL_SIN_MANO` están bien calibrados.
+3. Paso 6 — diseñar la fuente 5×7 de las 26 letras (más algo para `space`/`del`).
+4. Paso 7 — armar el sprite de 8 bytes por letra y enviarlo por UDP a la Pico W (reusando el
    protocolo del espejo facial).
-4. Paso 8 — prueba de punta a punta con la matriz real y ajuste fino.
+5. Paso 8 — prueba de punta a punta con la matriz real y ajuste fino.
 
 ## Notas del entorno (para no reinstalar de cero)
 
