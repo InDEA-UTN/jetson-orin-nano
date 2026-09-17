@@ -1,15 +1,17 @@
 # Abecedario de Señas LED
 
-**Estado.** Al 15/09/2026: el modelo ya está entrenado (**95.92%** de precisión sobre el 20% de
-prueba) y probado con éxito en vivo, con la cámara real de la Jetson
-(`jetson/reconocer_letra.py`), que ahora también dibuja los landmarks en una ventana, estabiliza
-la letra reconocida en el tiempo y va escribiendo un texto de corrido (sin probar todavía contra
-la Jetson real). **El alcance se amplió a 28 etiquetas** — se sumaron J y Z (como poses
-estáticas) y `space`/`del` como comandos de edición — y el modelo ya se reentrenó con todas:
-**95.92%**, sin degradarse respecto de las 24 anteriores. El plan original de
-usar un modelo pre-entrenado por otra persona se abandonó (motivo abajo, sección "Decisiones") y
-se pivotó a entrenar un modelo propio con un dataset público de fotos. **Falta la parte de
-salida**: fuente para la matriz LED y el envío por UDP — ver "Fases" y "Próximos pasos" más abajo.
+**Estado.** Al 16/09/2026: **el pipeline completo funciona de punta a punta contra el hardware
+real** — cámara de la Jetson → clasificador (**95.92%** de precisión sobre el 20% de prueba, 28
+etiquetas) → estabilizador temporal → matriz LED 8×8 mostrando la letra. Las 8 fases del plan
+original están hechas. `jetson/reconocer_letra.py` (con ventana local) y
+`jetson/reconocer_letra_stream.py` (sin monitor, video por túnel SSH) clasifican en vivo,
+estabilizan la letra, arman texto de corrido con `space`/`del`, y mandan la letra confirmada por
+UDP a la Pico W usando la fuente propia de `jetson/letras_matriz.py`. **El alcance se amplió a 28
+etiquetas** — se sumaron J y Z (como poses estáticas) y `space`/`del` como comandos de edición —
+sin degradar la precisión respecto de las 24 anteriores. El plan original de usar un modelo
+pre-entrenado por otra persona se abandonó (motivo abajo, sección "Decisiones") y se pivotó a
+entrenar un modelo propio con un dataset público de fotos. Lo que queda es ajuste fino, no
+funcionalidad nueva — ver "Qué queda por mejorar".
 
 ## Objetivo
 
@@ -155,6 +157,44 @@ normaliza en tres pasos antes de que sirva para comparar manos entre sí:
 A propósito **no** se normaliza la rotación: en ASL la orientación es parte de la letra (G y Q
 son la misma forma de dedos apuntando en distinta dirección).
 
+### `jetson/letras_matriz.py` — la fuente de letras y por qué no todas miden lo mismo
+
+La Pico W **no se toca para nada**: sigue siendo la misma pantalla tonta que ya usaba el espejo
+facial, recibe 8 bytes por UDP y prende los píxeles que le llegan, sin saber si eso es una cara o
+una letra. Toda la decisión de "qué dibujar" vive de este lado, en `letras_matriz.py`.
+
+Cada letra se diseñó a mano en una grilla clásica de matrices de puntos, 5 columnas × 7 filas
+(deja margen dentro del canvas real de 8×8). Pero **W, X e Y usan 7 columnas en vez de 5** — son
+las tres letras con trazos diagonales, y una diagonal necesita más columnas de por medio para
+verse suave en vez de comprimida. Esto se puede hacer sin romper nada porque la matriz muestra
+**una sola letra fija a la vez, no texto corriendo**: si fuera scroll, todas las letras
+necesitarían el mismo ancho para que el espaciado se vea parejo (fuente monoespaciada); acá cada
+letra se centra en su propio ancho (`sprite_de_letra()` calcula el margen según el ancho de esa
+letra en particular), así que no hay ningún costo en dejar que las que lo necesitan usen más
+espacio. Las letras se revisaron primero en consola con
+[`jetson/ver_letras_matriz.py`](jetson/ver_letras_matriz.py) (imprime cada sprite como bloques
+`█`/`·`) antes de gastar tiempo probándolas contra el hardware — iterar en la consola es gratis,
+iterar contra la matriz física es lento.
+
+`del`, `space` y la ausencia de mano **no tienen sprite a propósito**: la decisión fue que la
+matriz se apague en esos tres casos en vez de mostrar un símbolo propio para cada uno.
+
+### El envío por UDP: siempre, no solo cuando cambia
+
+`enviar_a_matriz()` (en `reconocer_letra.py` y `reconocer_letra_stream.py`) manda un paquete **en
+cada frame**, con la letra que dice `estabilizador.confirmada` — nunca la letra cruda, porque eso
+haría titilar la matriz 30 veces por segundo entre letras parecidas. Y se manda siempre, aunque la
+letra no haya cambiado desde el frame anterior: UDP puede perder un paquete en silencio, y si solo
+se mandaran los cambios, un paquete perdido dejaría la matriz mostrando la letra vieja **para
+siempre**. Mandando siempre, el sistema se auto-corrige solo en el próximo frame (33 ms después) —
+mismo criterio que ya usa `jetson_face.py` del espejo facial.
+
+Antes de enchufar esto al reconocedor completo, se probó el camino de red aislado con
+[`jetson/probar_matriz.py`](jetson/probar_matriz.py) (manda una letra fija por UDP en loop, sin
+cámara ni modelo de por medio) — mismo criterio que aislar `joblib.load()` antes de la prueba en
+vivo del clasificador: si la matriz no muestra bien la letra, hay que saber si es un problema de
+red/protocolo o de reconocimiento, no adivinar.
+
 ### `entrenamiento/extraer_landmarks.py`
 
 Recorre las 28 carpetas del dataset de Kaggle listadas en `manos.LETRAS`, toma una muestra de
@@ -275,34 +315,63 @@ python3 -c "import joblib; m = joblib.load('abecedario_modelo.pkl'); print(m)"
    versión de scikit-learn entre la PC y la Jetson — ver la sección de arriba.
 
 5. **Estabilizador temporal, con ventana de landmarks.** [`jetson/reconocer_letra.py`](jetson/reconocer_letra.py)
-   — **hecho.** Mismo script de la fase anterior, ampliado con dos cosas: una ventana local
-   (`cv2.imshow`, mismo patrón que `jetson_face.py` del espejo facial) que dibuja los 21
-   landmarks sobre el video y muestra en texto tanto la letra cruda del frame como la ya
-   confirmada — ya no corre "a ciegas" por SSH, necesita un monitor conectado a la Jetson — y la
-   clase `EstabilizadorLetra`, que exige que la misma letra cruda se repita `UMBRAL_ESTABLE`
-   frames seguidos (8 por defecto) antes de escribirla, para que el ruido frame a frame del
-   detector (ya visto en el paso 1) no haga titilar la letra ni llene la consola de letras
-   fantasma. Mismo rol que la media móvil de `gestos.py` en el espejo facial, pero sobre un valor
-   discreto (contar repeticiones) en vez de un promedio continuo. Sostener la misma letra
-   `UMBRAL_REPETICION` frames más la vuelve a escribir (auto-repeat, como mantener una tecla),
-   que es lo que permite escribir "CALLE" o borrar varios caracteres con `del`. **Falta la prueba
-   real** frente a la Jetson para calibrar esos números (paso 8).
+   — **hecho y probado en vivo.** Mismo script de la fase anterior, ampliado con dos cosas: una
+   ventana local (`cv2.imshow`, mismo patrón que `jetson_face.py` del espejo facial) que dibuja
+   los 21 landmarks sobre el video y muestra en texto tanto la letra cruda del frame como la ya
+   confirmada — necesita sesión gráfica local, ver la trampa del `DISPLAY` más abajo — y la clase
+   `EstabilizadorLetra`, que exige que la misma letra cruda se repita `UMBRAL_ESTABLE` frames
+   seguidos (8 por defecto) antes de escribirla, para que el ruido frame a frame del detector (ya
+   visto en el paso 1) no haga titilar la letra ni llene la consola de letras fantasma. Mismo rol
+   que la media móvil de `gestos.py` en el espejo facial, pero sobre un valor discreto (contar
+   repeticiones) en vez de un promedio continuo. Sostener la misma letra `UMBRAL_REPETICION`
+   frames más la vuelve a escribir (auto-repeat, como mantener una tecla), que es lo que permite
+   escribir "CALLE" o borrar varios caracteres con `del`. **Probado con los valores por defecto
+   (8/16/10) sin tocar nada y anduvo bien** — queda como posible ajuste fino más adelante, no
+   como pendiente bloqueante.
 
-6. **Fuente de 5×7 y sprite por letra.** *Pendiente.* Un dibujo de cada letra en una grilla de 5
-   columnas × 7 filas (con 1 columna libre para centrar en la matriz de 8×8) — igual a como
-   `gestos.py` del espejo facial dibuja cejas/ojos/boca con puntos. Es trabajo de diseño visual,
-   no de machine learning: elegir, para cada letra, la representación más legible a un tamaño tan
-   chico.
+6. **Fuente de 5×7 (7 para W/X/Y) y sprite por letra.** [`jetson/letras_matriz.py`](jetson/letras_matriz.py)
+   — **hecho**. Las 26 letras diseñadas a mano y revisadas en consola antes de tocar hardware con
+   [`jetson/ver_letras_matriz.py`](jetson/ver_letras_matriz.py) — ver la sección de arriba para el
+   porqué de los anchos distintos. `del`, `space` y sin mano dejan la matriz apagada a propósito.
 
-7. **Enviar por UDP a la Pico W.** *Pendiente, pero sin nada nuevo que programar de ese lado*:
-   el protocolo de 8 bytes (un byte por fila, bit 7 = píxel izquierdo) ya está armado y probado
-   en el espejo facial — se reusan [`../espejo_facial_led/pico/main.py`](../espejo_facial_led/pico/main.py)
-   y [`max7219.py`](../espejo_facial_led/pico/max7219.py) tal cual.
+7. **Enviar por UDP a la Pico W.** — **hecho, y la Pico no se tocó**: el protocolo de 8 bytes ya
+   armado y probado en el espejo facial se reusa tal cual
+   ([`../espejo_facial_led/pico/main.py`](../espejo_facial_led/pico/main.py) y
+   [`max7219.py`](../espejo_facial_led/pico/max7219.py)). Se probó primero aislado con
+   `probar_matriz.py` (sin cámara) y recién después enchufado al reconocedor real — ver la sección
+   de arriba para el porqué de mandar el paquete siempre, no solo al cambiar.
 
-8. **Prueba de punta a punta y ajuste fino.** *Pendiente.* Mostrar letras reales frente a la
-   Jetson y ver qué aparece en la matriz; ajustar lo que falle (subir `MUESTRAS_POR_LETRA` si una
-   letra anda mal, tocar el número de frames del estabilizador, etc.) — recién ahí, iterando
-   sobre datos reales de la placa completa, no sobre suposiciones.
+8. **Prueba de punta a punta.** — **hecho el 16/09**: letra hecha con la mano real → clasificada
+   → estabilizada → mostrada en la matriz LED, sin nada simulado de por medio. En el camino
+   aparecieron dos trampas de infraestructura (no del reconocimiento en sí) — ver la sección de
+   trampas más abajo. El ajuste fino que pueda hacer falta (`MUESTRAS_POR_LETRA`, umbrales del
+   estabilizador, J/Z en movimiento real) queda para seguir puliendo, no para destrabar nada.
+
+## Trampas de infraestructura encontradas en la prueba de punta a punta (16/09)
+
+Ninguna de estas es un problema del reconocimiento ni del modelo — las tres son de "cablear" la
+Jetson, la Pico y la PC entre sí:
+
+- **El hotspot de la Jetson no levantaba** (`nmcli connection up Hotspot` fallaba con "No
+  suitable device found... mismatching interface name"). La causa real no era esa: la placa WiFi
+  (`wlP1p1s0`) estaba en estado `unavailable` (radio apagada por software), así que NetworkManager
+  intentaba poner el perfil en la única interfaz que le quedaba libre (la de Ethernet) y fallaba
+  ahí. Se resolvió con `sudo nmcli radio wifi on`. Si vuelve a pasar, primero chequear
+  `nmcli device status` y `nmcli radio wifi` antes de sospechar del perfil del hotspot en sí.
+- **`cv2.imshow` no abre por SSH aunque haya un monitor físico conectado a la Jetson.** Conectar
+  el cable no alcanza: una sesión SSH es un canal aparte que no hereda la variable `DISPLAY` de la
+  sesión gráfica que arrancó en ese monitor. Hace falta estar sentado físicamente en la Jetson
+  (con su propio teclado/mouse) para que `reconocer_letra.py` (la versión con ventana) abra sin
+  error — por SSH conviene usar `reconocer_letra_stream.py` en cambio, que no depende de
+  `DISPLAY` para nada (ver su sección en `jetson/README.md`).
+- **Un `scp` viejo hizo perder tiempo:** después de agregar `enviar_a_matriz()` a
+  `reconocer_letra.py`, la matriz no reaccionaba a nada — pero el script corría sin errores. La
+  causa: el archivo en la Jetson era una copia de antes de ese cambio (nunca se volvió a copiar).
+  Se detectó comparando el número de línea de un error de una corrida anterior contra el número de
+  línea de esa misma instrucción en el archivo actual — si no coinciden, el archivo que corriste
+  no es el que creés. **Lección: después de todo `scp` a la Jetson, si algo no cambia de
+  comportamiento, confirmar con `grep -n <algo del cambio nuevo> archivo.py` antes de seguir
+  debuggeando el código en sí.**
 
 ## Qué queda por mejorar
 
@@ -310,32 +379,37 @@ python3 -c "import joblib; m = joblib.load('abecedario_modelo.pkl'); print(m)"
   extracción). Primer remedio a probar: subir `MUESTRAS_POR_LETRA` en `extraer_landmarks.py`
   (hoy en 300) para esas letras, o para todas.
 - **U, V y R** salieron algo flojas en el `classification_report` por ser geométricamente
-  parecidas entre sí — en la prueba en vivo anduvieron bien, pero falta una prueba más
+  parecidas entre sí — en pruebas en vivo anteriores anduvieron bien, pero falta una prueba más
   sistemática (mostrar cada una varias veces seguidas y contar aciertos) antes de darlas por
   confirmadas del todo.
-- El estabilizador temporal (paso 5) ya está escrito (`EstabilizadorLetra`, `UMBRAL_ESTABLE=8`)
-  pero todavía no se probó frente a la Jetson real — falta confirmar si ese número de frames es
-  un buen punto de partida o hace falta subirlo/bajarlo (paso 8).
 - **J y Z** pasaron el examen del dataset con nota alta (1.00/0.96 y 1.00/1.00) sin arruinar la
   I, pero eso solo prueba que las fotos de Kaggle son separables entre sí. **Falta la prueba en
-  vivo**, que es la que puede fallar: al hacerlas de verdad la mano recorre varias poses y el
-  clasificador va a ir disparando letras durante el movimiento. Reconocerlas *bien* sigue siendo
-  otro problema — habría que clasificar una ventana de varios frames en vez de uno quieto.
-- Las **letras repetidas** ("CALLE") y borrar varios caracteres se resolvieron con auto-repeat
-  por sostenido (`UMBRAL_REPETICION`, 16 frames), como mantener una tecla apretada. Falta
-  calibrar ese número contra la cámara real: muy bajo hace que se dupliquen letras mientras uno
-  piensa, muy alto lo vuelve incómodo.
+  vivo haciendo el gesto real** (con movimiento), que es la que puede fallar: al hacerlas de
+  verdad la mano recorre varias poses y el clasificador va a ir disparando letras durante el
+  movimiento. Reconocerlas *bien* sigue siendo otro problema — habría que clasificar una ventana
+  de varios frames en vez de uno quieto.
+- Los umbrales del estabilizador (`UMBRAL_ESTABLE=8`, `UMBRAL_REPETICION=16`,
+  `UMBRAL_SIN_MANO=10`) anduvieron bien tal cual en la primera prueba de punta a punta, sin
+  tocar nada — quedan como candidatos a afinar más adelante si con el uso se sienten muy rápidos
+  o muy lentos, no como algo pendiente de resolver.
+- La Pico sigue arrancando `main.py` apretando "Run" en Thonny cada sesión, no quedó grabado en
+  la memoria interna para arrancar solo con darle alimentación. No es un problema — solo significa
+  acordarse de abrir Thonny y correrlo antes de probar el reconocedor.
 
-## Próximos pasos (para retomar la próxima sesión)
+## Próximos pasos
 
-1. **Copiar a la Jetson el `abecedario_modelo.pkl` nuevo** (el de 28 etiquetas) y el
-   `reconocer_letra.py` actualizado, y probar en vivo: si J y Z sobreviven al movimiento real
-   (ver la advertencia en la fase 3), si se puede escribir una palabra usando `space`/`del`, y si
-   `UMBRAL_ESTABLE` / `UMBRAL_SIN_MANO` están bien calibrados.
-3. Paso 6 — diseñar la fuente 5×7 de las 26 letras (más algo para `space`/`del`).
-4. Paso 7 — armar el sprite de 8 bytes por letra y enviarlo por UDP a la Pico W (reusando el
-   protocolo del espejo facial).
-5. Paso 8 — prueba de punta a punta con la matriz real y ajuste fino.
+El pipeline completo ya funciona de punta a punta. Lo que sigue es afinar, no destrabar nada
+nuevo:
+
+1. Probar **J y Z haciendo el gesto real** (con movimiento) frente a la cámara, no solo fotos
+   fijas del dataset — es la prueba que falta de la fase 3/8.
+2. Si M, N, `space`, U, V o R fallan seguido en el uso real, subir `MUESTRAS_POR_LETRA` en
+   `extraer_landmarks.py` para esas letras y reentrenar.
+3. Si el auto-repeat o el tiempo de confirmación se sienten mal calibrados con el uso, ajustar
+   `UMBRAL_ESTABLE` / `UMBRAL_REPETICION` / `UMBRAL_SIN_MANO` en `reconocer_letra.py` **y**
+   `reconocer_letra_stream.py` (están duplicados a propósito, hay que tocar los dos).
+4. Opcional: grabar `main.py` en la memoria interna de la Pico para que arranque sola con la
+   alimentación, sin depender de Thonny.
 
 ## Notas del entorno (para no reinstalar de cero)
 
@@ -365,6 +439,13 @@ pip install "scikit-learn==1.7.2" joblib
 **Importante**: esa versión de scikit-learn tiene que coincidir con la que se usó para generar
 `abecedario_modelo.pkl` en la PC de escritorio — ver la sección "Compatibilidad de versiones"
 más arriba antes de reentrenar con una versión distinta.
+
+**Antes de correr el reconocedor con salida a la matriz**, hace falta el hotspot de la Jetson
+levantado y la Pico corriendo `main.py` y conectada a él — ver
+[`../espejo_facial_led/integracion.md`](../espejo_facial_led/integracion.md) sección 11 para el
+detalle completo. Si `nmcli connection up Hotspot` falla, chequear primero
+`nmcli device status`: si la placa WiFi aparece `unavailable`, la radio está apagada por software
+y se prende con `sudo nmcli radio wifi on` (no es un problema del perfil del hotspot en sí).
 
 **Trampa real encontrada (11/09):** al mover/copiar archivos del proyecto apareció una carpeta
 duplicada `proyectos/abecedario_de_senas (2)/`, con una copia vieja del dataset de Kaggle sin

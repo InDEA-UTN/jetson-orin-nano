@@ -29,7 +29,12 @@
 # se genero el .pkl en la PC de escritorio -- ver ../README.md, seccion "Compatibilidad de
 # versiones entre la PC y la Jetson". Si no coinciden, joblib.load() puede tirar
 # InconsistentVersionWarning (no siempre un error duro, pero sin garantia de resultado correcto).
+#
+# Paso 7: ademas manda por UDP a la Pico el sprite de la letra CONFIRMADA (nunca la cruda, para
+# no titilar la matriz) -- ver enviar_a_matriz() y letras_matriz.py. Antes de correr esto, probar
+# el camino de red aislado con probar_matriz.py (sin camara ni modelo de por medio).
 
+import socket
 import time
 
 import cv2
@@ -38,10 +43,16 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
+import letras_matriz
 import manos
 
 MODELO_MANOS = '/home/indea/hand_landmarker.task'
 MODELO_LETRAS = 'abecedario_modelo.pkl'
+
+# Misma IP/puerto que probar_matriz.py -- la asigna el DHCP del hotspot de la Jetson y puede
+# cambiar entre sesiones (ver ../../espejo_facial_led/integracion.md, seccion 11).
+IP_PICO = "10.42.0.170"
+PORT_PICO = 5005
 
 # Cuantos frames SEGUIDOS tiene que repetirse la misma letra cruda antes de confirmarla. Es el
 # primer numero a tocar en el paso 8 (ajuste fino): muy bajo deja pasar ruido, muy alto hace que
@@ -150,6 +161,21 @@ def texto_con_borde(frame, texto, y, color=(0, 255, 0)):
     cv2.putText(frame, texto, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1)
 
 
+def enviar_a_matriz(letra):
+    # 'del', 'space' y sin mano (letra=None) no tienen sprite a proposito -- ver letras_matriz.py:
+    # la decision fue que la matriz se apague en esos tres casos. Se manda SIEMPRE, en cada frame,
+    # no solo cuando la letra cambia: UDP puede perder un paquete en silencio, y si solo mandaramos
+    # los cambios, un paquete perdido dejaria la matriz mostrando la letra vieja para siempre. Al
+    # mandar siempre, el sistema se auto-corrige en el proximo frame (33 ms despues).
+    if letra in letras_matriz.FUENTE:
+        sprite = letras_matriz.sprite_de_letra(letra)
+    else:
+        sprite = ["0" * 8] * 8
+    sock_pico.sendto(letras_matriz.sprite_a_bytes(sprite), (IP_PICO, PORT_PICO))
+
+
+sock_pico = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
 options = vision.HandLandmarkerOptions(
     base_options=python.BaseOptions(model_asset_path=MODELO_MANOS),
     running_mode=vision.RunningMode.VIDEO,
@@ -174,7 +200,8 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 VENTANA = "Abecedario de Senas - landmarks (Jetson)"
 cv2.namedWindow(VENTANA, cv2.WINDOW_NORMAL)
 
-print("Camara abierta. Mostrale una letra - 'q' en la ventana o Ctrl+C en la consola para cortar")
+print(f"Camara abierta. Mandando a {IP_PICO}:{PORT_PICO} - 'q' en la ventana o Ctrl+C en la "
+      "consola para cortar")
 print("Sostener la misma letra la repite (como mantener una tecla); tambien vale sacar la mano.\n")
 
 texto = ""
@@ -195,6 +222,7 @@ try:
             # Sin mano nunca hay nada que escribir; procesar(None) solo lleva la cuenta para
             # soltar la letra sostenida despues de UMBRAL_SIN_MANO frames.
             estabilizador.procesar(None)
+            enviar_a_matriz(estabilizador.confirmada)
             texto_con_borde(frame, "Mano: no detectada", 30, (0, 0, 255))
             texto_con_borde(frame, f"Texto: {texto[-30:]}", 80, (255, 255, 0))
             cv2.imshow(VENTANA, frame)
@@ -229,6 +257,7 @@ try:
             mostrar_texto(texto)
 
         confirmada = estabilizador.confirmada
+        enviar_a_matriz(confirmada)
         faltan = estabilizador.faltan()
         color_confirmada = (0, 255, 0) if confirmada == letra_cruda else (200, 200, 200)
         texto_con_borde(

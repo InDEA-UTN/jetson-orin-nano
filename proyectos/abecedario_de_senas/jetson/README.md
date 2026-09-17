@@ -3,19 +3,19 @@
 Esta carpeta tiene el código que corre **en la Jetson, con la cámara real**, a diferencia de
 `../entrenamiento/`, que corre una sola vez en una PC de escritorio sobre fotos de un dataset.
 Ninguno de estos scripts guarda nada en disco (ni imágenes ni video). `probar_manos.py` corre por
-SSH sin monitor (solo imprime texto); `reconocer_letra.py` en cambio abre una ventana local con
-los landmarks dibujados, así que necesita un monitor conectado a la Jetson (ver su sección más
-abajo).
+SSH sin monitor (solo imprime texto); `reconocer_letra.py` abre una ventana local con los
+landmarks dibujados y necesita sesión gráfica; `reconocer_letra_stream.py` hace lo mismo sin
+necesitar monitor ni sesión gráfica (ver sus secciones más abajo).
 
-Para el porqué de cada decisión (de dónde salen los 63 números, por qué KNN, la trampa de
-versiones entre la PC y la Jetson) ver el **[README principal del proyecto](../README.md)** —
-este archivo es solo la guía práctica de esta carpeta.
+Para el porqué de cada decisión (de dónde salen los 63 números, por qué KNN, la fuente de letras,
+la trampa de versiones entre la PC y la Jetson) ver el **[README principal del
+proyecto](../README.md)** — este archivo es solo la guía práctica de esta carpeta.
 
-## Los tres archivos
+## Los archivos
 
 ### `manos.py` — no es un script, es la lógica compartida
 
-No se corre solo. Lo importan tanto `reconocer_letra.py` (acá) como
+No se corre solo. Lo importan tanto los scripts de reconocimiento (acá) como
 `../entrenamiento/extraer_landmarks.py` (en la PC), y **tiene que ser el mismo código de los dos
 lados**: define `vector_normalizado()`, la función que convierte los 21 landmarks 3D de una mano
 (`hand_world_landmarks` de MediaPipe) en el vector de 63 números que entiende el clasificador —
@@ -35,11 +35,43 @@ puntual y que los landmarks (incluida la profundidad de `hand_world_landmarks`) 
 antes de meter un clasificador en el medio. **Ya verificado** — ver "Fases" en el README
 principal.
 
-### `reconocer_letra.py` — Fases 4 y 5: clasificar letra en vivo, con ventana y estabilizador
+### `letras_matriz.py` — no es un script, es la fuente de letras
 
-El script real del proyecto. Igual que `jetson_face.py` del espejo facial: abre una ventana local
-(`cv2.imshow`) con los landmarks dibujados sobre el video y el estado actual en texto, en vez de
-imprimir solo por consola. Por cada frame con mano detectada:
+No se corre solo, lo importan `reconocer_letra.py`/`reconocer_letra_stream.py` (para mandar el
+sprite a la Pico) y `ver_letras_matriz.py` (para previsualizar). Tiene el diseño de las 26 letras
+en una grilla de puntos (5 columnas × 7 filas, 7 para W/X/Y) y dos funciones: `sprite_de_letra()`
+centra ese diseño en el canvas real de 8×8, y `sprite_a_bytes()` lo convierte a los 8 bytes del
+protocolo UDP (mismo formato que ya usa el espejo facial). Ver el README principal para el
+porqué de los anchos distintos por letra y por qué `del`/`space`/sin-mano quedan sin sprite.
+
+### `ver_letras_matriz.py` — previsualizar la fuente sin hardware
+
+```bash
+python3 ver_letras_matriz.py          # las 26 letras
+python3 ver_letras_matriz.py W X Y    # solo esas, para iterar rapido una en particular
+```
+
+Imprime cada sprite como bloques `█`/`·` en la consola. No usa cámara, mediapipe, ni red —
+corre en cualquier máquina con Python, incluida la PC de escritorio. Se usó para ajustar el
+diseño de las letras antes de gastar tiempo probándolas contra la matriz física.
+
+### `probar_matriz.py` — probar el envío UDP sin cámara
+
+```bash
+python3 probar_matriz.py A
+```
+
+Manda el sprite de una letra fija por UDP a la Pico, repetido cada 0.5s hasta Ctrl+C (no una vez
+sola, para no confundir "se perdió el paquete" con "el sprite está mal"). Aísla el camino de
+red/protocolo del reconocimiento — si la letra no aparece bien en la matriz acá, el problema es
+la IP, el protocolo o el sprite, no el modelo ni mediapipe. Necesita el hotspot de la Jetson
+levantado y la Pico corriendo `main.py` (ver "Antes de correr" más abajo).
+
+### `reconocer_letra.py` — clasificar en vivo, con ventana, estabilizador y salida a la matriz
+
+El script completo, con ventana local. Igual que `jetson_face.py` del espejo facial: abre una
+ventana (`cv2.imshow`) con los landmarks dibujados sobre el video y el estado actual en texto, en
+vez de imprimir solo por consola. Por cada frame con mano detectada:
 
 1. El modelo se carga una sola vez, antes de abrir la cámara: `joblib.load('abecedario_modelo.pkl')`.
 2. Calcula el vector normalizado con `manos.vector_normalizado()` (la misma función que usó el
@@ -59,6 +91,9 @@ imprimir solo por consola. Por cada frame con mano detectada:
    se reescribe con `\r` (no una línea nueva por letra), más el mismo texto en la ventana. Las
    etiquetas `space` y `del` se aplican como lo que son: escribir un espacio y borrar el último
    carácter (`aplicar_al_texto`).
+6. `enviar_a_matriz()` manda por UDP a la Pico el sprite de la letra **confirmada** (nunca la
+   cruda), en cada frame, incluso cuando no cambió — ver el README principal para el porqué de
+   mandar siempre y no solo al cambiar.
 
 Para **repetir** una letra ("CALLE") o borrar varios caracteres hay dos caminos, y el
 estabilizador soporta los dos:
@@ -74,9 +109,45 @@ Un parpadeo del detector mientras se sostiene una letra (la letra salta unos fra
 **no** la reescribe — si no, cualquier salto de ruido ensuciaría el texto con duplicados. La
 ventana muestra en cuántos frames va a escribir la próxima, para ver venir el auto-repeat.
 
-Cerrar con `q` (con foco en la ventana) o Ctrl+C en la consola. **Ya probado con éxito**
-(clasificación) — el estabilizador y la ventana son la incorporación de esta sesión, falta la
-prueba de punta a punta. Ver "Fases" y los resultados en el README principal.
+Cerrar con `q` (con foco en la ventana) o Ctrl+C en la consola. **Probado de punta a punta con
+éxito el 16/09**: mano real → letra → matriz LED, con los umbrales por defecto.
+
+### `reconocer_letra_stream.py` — lo mismo, pero sin monitor en la Jetson
+
+Misma clasificación, mismo `EstabilizadorLetra` y el mismo `enviar_a_matriz()` que
+`reconocer_letra.py`, pero sin `cv2.imshow`: en vez de abrir una ventana local, codifica cada
+frame ya anotado como JPEG y lo sirve por HTTP en `127.0.0.1:8000` (solo alcanzable desde la
+propia Jetson, no expuesto a la red). Para verlo desde la PC hace falta un **túnel SSH**, que
+"estira" ese puerto hasta la PC:
+
+```bash
+ssh -L 8000:localhost:8000 <usuario>@<ip-jetson>
+```
+
+y con ese túnel abierto (puede ser una segunda sesión SSH, no hace falta usar esa para nada más),
+abrir `http://localhost:8000/` en un navegador de la PC. El video viaja adentro del túnel ya
+cifrado por SSH, así que no hace falta abrir ningún puerto en la red del laboratorio. Esta es la
+opción a usar si estás por SSH y no querés (o no podés) sentarte físicamente en la Jetson — ver
+la trampa del `DISPLAY` más abajo.
+
+Se corta con Ctrl+C en la consola donde corre el script (no hay ventana con foco ni tecla `q`).
+
+## Antes de correr cualquiera de los dos reconocedores
+
+Además del venv con mediapipe/opencv/scikit-learn (ver "Cómo correrlo" abajo), la salida a la
+matriz necesita la red Jetson-Pico levantada:
+
+1. **Hotspot de la Jetson arriba**: `sudo nmcli connection up Hotspot`. Si falla con "No suitable
+   device found... mismatching interface name", el problema real suele ser que la placa WiFi está
+   `unavailable` (radio apagada por software) — chequear con `nmcli device status` y prender la
+   radio con `sudo nmcli radio wifi on` antes de reintentar.
+2. **La Pico corriendo `main.py`** (por ahora vía Thonny, apretando "Run" — no está grabado en su
+   memoria interna para arrancar solo). Al conectar imprime la IP que le asignó el DHCP del
+   hotspot; confirmarla contra `IP_PICO` en `reconocer_letra.py`/`reconocer_letra_stream.py`/
+   `probar_matriz.py` si dejó de andar (puede cambiar entre sesiones).
+
+Conviene probar la red aislada con `probar_matriz.py` antes de correr el reconocedor completo, si
+es la primera vez en la sesión o algo del hardware cambió.
 
 ## Cómo correrlo
 
@@ -91,13 +162,18 @@ pip install "scikit-learn==1.7.2" joblib
 principal) — si no coincide, `joblib.load()` puede no tirar error pero sí un
 `InconsistentVersionWarning`, sin garantía de que el resultado sea correcto.
 
-Con `abecedario_modelo.pkl` copiado a esta misma carpeta, **y un monitor conectado a la Jetson**
-(sesión gráfica activa, `DISPLAY` seteado — si se corre por SSH sin `-X` y sin monitor físico,
-`cv2.imshow` no tiene dónde abrir la ventana y el script corta con error):
+Con `abecedario_modelo.pkl` y `letras_matriz.py` copiados a esta misma carpeta:
 
 ```bash
-python3 reconocer_letra.py
+python3 reconocer_letra.py          # con ventana: hace falta estar sentado en la Jetson
+python3 reconocer_letra_stream.py   # sin ventana: sirve por SSH con el tunel de arriba
 ```
+
+**`reconocer_letra.py` necesita sesión gráfica local (`DISPLAY` seteado).** Ojo con esta trampa:
+**conectar un monitor por cable a la Jetson no alcanza si lo corrés por SSH** — una sesión SSH es
+un canal aparte, no hereda el `DISPLAY` de la sesión gráfica que arrancó en ese monitor. Hace
+falta estar sentado físicamente en la Jetson (con su propio teclado) para que abra sin error
+`Can't initialize GTK backend`. Por SSH, usar `reconocer_letra_stream.py` en cambio.
 
 `q` con foco en la ventana, o Ctrl+C en la consola, para cortar. Si la cámara no abre, casi
 siempre es otro proceso que la tiene tomada:
@@ -106,10 +182,10 @@ siempre es otro proceso que la tiene tomada:
 ps aux | grep -E "probar_manos|reconocer_letra" | grep -v grep
 ```
 
-## Qué falta acá
+Y si corriste algo y no ves el cambio esperado (por ejemplo, la matriz no reacciona), confirmá
+que el archivo que corriste es el que creés que es — un `scp` viejo sin repetir después de un
+cambio es un clásico:
 
-Según el plan del proyecto (ver "Próximos pasos" en el README principal), a este script todavía
-le falta el **envío por UDP a la Pico W** con el sprite de la letra ya confirmada por el
-estabilizador (pasos 6 y 7: diseñar la fuente de cada letra y mandarla por el protocolo ya
-armado). Hoy `reconocer_letra.py` clasifica y estabiliza la letra y la muestra en pantalla, pero
-todavía no manda nada a la matriz de LEDs.
+```bash
+grep -n "enviar_a_matriz" reconocer_letra.py
+```
