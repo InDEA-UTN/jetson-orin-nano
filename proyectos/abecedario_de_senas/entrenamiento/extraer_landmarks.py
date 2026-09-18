@@ -19,7 +19,6 @@ import os
 import random
 import sys
 import time
-
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -37,7 +36,7 @@ SALIDA = os.path.join(RAIZ, "dataset_landmarks.npz")
 # Cuantas fotos tomar de cada letra (hay 3000 en el dataset). Un numero chico alcanza para un
 # primer modelo y para confirmar que toda la cadena funciona; se puede subir despues sin tocar
 # nada mas que este numero.
-MUESTRAS_POR_LETRA = 300
+MUESTRAS_POR_LETRA = 3000
 
 random.seed(42)  # para que elegir "300 al azar" de cada carpeta de resultado igual entre corridas
 

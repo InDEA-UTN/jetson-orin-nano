@@ -124,11 +124,17 @@ propia Jetson, no expuesto a la red). Para verlo desde la PC hace falta un **tú
 ssh -L 8000:localhost:8000 <usuario>@<ip-jetson>
 ```
 
-y con ese túnel abierto (puede ser una segunda sesión SSH, no hace falta usar esa para nada más),
-abrir `http://localhost:8000/` en un navegador de la PC. El video viaja adentro del túnel ya
-cifrado por SSH, así que no hace falta abrir ningún puerto en la red del laboratorio. Esta es la
-opción a usar si estás por SSH y no querés (o no podés) sentarte físicamente en la Jetson — ver
-la trampa del `DISPLAY` más abajo.
+`-L puerto_local:host:puerto_remoto` abre un túnel: lo que le llega al puerto 8000 de la PC se
+reenvía cifrado hasta el puerto 8000 de la Jetson (el `localhost` del medio es desde el punto de
+vista de la Jetson, no de la PC). Es necesario porque el servidor solo escucha en `127.0.0.1:8000`
+de la Jetson, a propósito, para no exponer la cámara a toda la red del laboratorio.
+
+Con ese túnel abierto (puede ser una segunda sesión SSH, no hace falta usar esa para nada más),
+abrir `http://localhost:8000/` en un navegador de la PC. Esta es la opción a usar si estás por SSH
+y no podés (o no querés) sentarte físicamente en la Jetson: `reconocer_letra.py` necesita
+`DISPLAY` seteado (sesión gráfica local) porque usa `cv2.imshow()`, y una sesión SSH no hereda el
+`DISPLAY` aunque haya un monitor conectado por cable — ver el detalle completo más abajo en "Cómo
+correrlo".
 
 Se corta con Ctrl+C en la consola donde corre el script (no hay ventana con foco ni tecla `q`).
 
@@ -187,5 +193,16 @@ que el archivo que corriste es el que creés que es — un `scp` viejo sin repet
 cambio es un clásico:
 
 ```bash
-grep -n "enviar_a_matriz" reconocer_letra.py
+grep -n "enviar_a_matriz" reconocer_letra.py           # o reconocer_letra_stream.py, el que corras
 ```
+
+**La señal específica de este problema**: la cámara, el modelo y (en `reconocer_letra_stream.py`)
+el stream por el navegador andan perfectos —ven la mano, reconocen la letra, arman el texto— pero
+la matriz nunca reacciona, y en la consola de Thonny de la Pico no aparece **ninguna** línea
+(ni `Sprite de ... :` ni `... ignorado`), ni una sola vez. Eso es lo que delata que el archivo que
+tenés copiado en la Jetson no tiene `enviar_a_matriz()` todavía: todo lo que SÍ se ve (cámara,
+modelo, stream) no depende para nada de la Pico, así que parece un problema de red cuando en
+realidad es que estás corriendo una copia vieja del script. Si en cambio la Pico imprime
+`Sprite de ... :` (aunque sea con la matriz apagada, puros ceros) pero la matriz sigue sin
+reaccionar, el archivo está bien y el problema es otro: que nunca se confirma ninguna letra
+(`estabilizador.confirmada` se queda en `None`) — ahí hay que mirar el reconocimiento, no la red.

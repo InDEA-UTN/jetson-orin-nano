@@ -16,6 +16,13 @@ from wifi_config import SSID, PASSWORD
 
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
+# Antes de connect(), con el radio recien activado: aplicado despues de conectar, el ioctl
+# competia con la propia negociacion wifi todavia en curso y tiraba timeout sin aplicarse de
+# verdad (se vio "[CYW43] do_ioctl(...) timeout" en la consola). Sin esto, el chip entra en modo
+# ahorro de energia apenas queda un rato sin mandar trafico saliente, y pierde paquetes UDP
+# entrantes (o hasta un ping) hasta que se despierta en su proximo ciclo -- grave para este
+# script porque solo RECIBE, nunca manda nada por su cuenta.
+wlan.config(pm=0xa11140)
 wlan.connect(SSID, PASSWORD)
 while not wlan.isconnected():
     time.sleep(0.5)
