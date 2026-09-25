@@ -86,6 +86,10 @@ try:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         result = detector.detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb), ts_ms)
         if not result.face_landmarks:
+            # Sin esto la matriz queda congelada en el ultimo gesto cuando la persona se va de
+            # cuadro -- mismo criterio que los scripts de abecedario_de_senas: mandar SIEMPRE,
+            # haya deteccion o no, para que la matriz refleje el estado real de la camara.
+            sock.sendto(gestos.sprite_a_bytes(["0" * 8] * 8), (IP_PICO, PORT))
             cv2.imshow(VENTANA, frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break

@@ -54,6 +54,7 @@ proyectos/abecedario_de_senas/dataset_kaggle/
 proyectos/abecedario_de_senas/dataset_landmarks.npz
 
 # Excepción a la regla general de *.pkl de arriba: este es nuestro propio modelo entrenado (KNN,
-# ~1.1 MB), no un binario de terceros -- se versiona a propósito para que alcance con clonar el
-# repo y correr jetson/reconocer_letra.py sin tener que rearmar el dataset y reentrenar de cero.
+# ~13 MB -- crece con la cantidad de muestras, KNN guarda el dataset entero), no un binario de
+# terceros -- se versiona a propósito para que alcance con clonar el repo y correr
+# jetson/reconocer_letra.py sin tener que rearmar el dataset y reentrenar de cero.
 !proyectos/abecedario_de_senas/abecedario_modelo.pkl

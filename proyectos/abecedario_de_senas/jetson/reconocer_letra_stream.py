@@ -22,6 +22,7 @@
 # no titilar la matriz) -- ver enviar_a_matriz() y letras_matriz.py. Antes de correr esto, probar
 # el camino de red aislado con probar_matriz.py (sin camara ni modelo de por medio).
 
+import os
 import socket
 import threading
 import time
@@ -37,7 +38,11 @@ import letras_matriz
 import manos
 
 MODELO_MANOS = '/home/indea/hand_landmarker.task'
-MODELO_LETRAS = 'abecedario_modelo.pkl'
+# Absoluto, no solo el nombre del archivo: relativo dependia de desde que directorio se
+# corriera el script, y joblib.load() fallaba si se corria desde otro lado aunque el .pkl
+# estuviera al lado de este archivo. Se resuelve contra la ubicacion de este mismo script, no
+# contra un directorio fijo, para no romper si se mueve la carpeta del proyecto entero.
+MODELO_LETRAS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'abecedario_modelo.pkl')
 
 # Solo localhost: el puerto no se expone a la red, se llega a el a traves del tunel SSH.
 HOST = '127.0.0.1'

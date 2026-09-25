@@ -209,18 +209,21 @@ def sprite_de_letra(letra):
     """Glifo de FUENTE (5 o 7 columnas, segun la letra) -> sprite de 8 filas de 8 caracteres
     '0'/'1', el formato que ya entiende sprite_a_bytes(). El margen izquierdo se calcula segun
     el ancho de ESA letra, para que una de 5 columnas y una de 7 (W, X, Y: ver el comentario
-    en FUENTE) queden centradas cada una en su propio ancho dentro del canvas de 8x8. Una letra
-    sin glifo definido (no deberia pasar con las 26 de LETRAS, pero por si acaso) devuelve la
-    matriz apagada en vez de reventar."""
+    en FUENTE) queden centradas cada una en su propio ancho dentro del canvas de 8x8; el margen
+    superior se calcula igual, segun el alto (7 filas siempre), para centrar tambien verticalmente
+    y no dejar la letra pegada arriba con la fila 8 siempre vacia. Una letra sin glifo definido
+    (no deberia pasar con las 26 de LETRAS, pero por si acaso) devuelve la matriz apagada en vez
+    de reventar."""
     glifo = FUENTE.get(letra.upper())
     filas = ["0" * 8 for _ in range(8)]
     if glifo is None:
         return filas
     margen_izq = (8 - len(glifo[0])) // 2
+    margen_arriba = (8 - len(glifo)) // 2
     for i, fila in enumerate(glifo):
         contenido = "0" * margen_izq + fila.replace("#", "1").replace(".", "0")
         contenido = contenido.ljust(8, "0")
-        filas[i] = contenido
+        filas[margen_arriba + i] = contenido
     return filas
 
 
