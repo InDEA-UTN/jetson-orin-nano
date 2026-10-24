@@ -410,6 +410,11 @@ nuevo:
    `reconocer_letra_stream.py` (están duplicados a propósito, hay que tocar los dos).
 4. Opcional: grabar `main.py` en la memoria interna de la Pico para que arranque sola con la
    alimentación, sin depender de Thonny.
+5. **En curso (desde el 23/10): pantalla LCD 16x2 para mostrar el texto escrito** — driver y
+   prueba aislada ya andando contra la Pico real; falta conectarlo al reconocedor por UDP. Todo
+   el detalle (cómo funciona el módulo I2C, cableado, diseño del paquete de 33 bytes, y la idea de
+   correr los dos proyectos a la vez con 2 cámaras para la presentación) en
+   [`LCD extension/README.md`](LCD%20extension/README.md).
 
 ## Notas del entorno (para no reinstalar de cero)
 
