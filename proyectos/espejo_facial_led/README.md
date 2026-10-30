@@ -12,7 +12,9 @@ Plataforma: NVIDIA Jetson Orin Nano + Raspberry Pi Pico W.
   [`lado_pico.md`](lado_pico.md) (WiFi, UDP y matriz, fases 1-2) e
   [`integracion.md`](integracion.md) (fases 6 y 7: integración completa, cuantización de gestos y
   calibración por persona). Quedan pendientes ajustes finos de umbrales, una IP reservada para la
-  Pico y el video de demostración.
+  Pico y el video de demostración. **Desde el 29/10** `jetson_face.py` vuelve a usar la cámara CSI,
+  para dejarle la webcam USB al abecedario de señas y correr los dos proyectos a la vez (falta
+  probarlo, ver [`integracion.md`](integracion.md) sección 13).
 - **Requisitos previos:** la placa andando con JetPack 6 y la cámara funcionando; ver la
   [guía de iniciación](../../guia_de_iniciacion/).
 
@@ -300,6 +302,12 @@ inmediato. Es el mismo criterio que usan los protocolos de video en vivo.
 
 **Extensión futura:** si se agregan más matrices (ojos y boca por separado), basta anteponer un
 byte de dirección. El resto del sistema no cambia.
+
+**Segundo tipo de paquete (desde el 29/10):** el abecedario de señas usa la misma Pico, el mismo
+`main.py` y el mismo puerto para escribir en un LCD 16x2: paquetes de **33 bytes** (`'L'` + 2
+líneas de 16 caracteres). La Pico los distingue por el largo, así que los de 8 bytes de este
+proyecto siguen funcionando exactamente igual. Detalle en [`integracion.md`](integracion.md)
+sección 13.
 
 ---
 

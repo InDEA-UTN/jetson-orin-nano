@@ -13,6 +13,12 @@ pre-entrenado por otra persona se abandonó (motivo abajo, sección "Decisiones"
 entrenar un modelo propio con un dataset público de fotos. Lo que queda es ajuste fino, no
 funcionalidad nueva — ver "Qué queda por mejorar".
 
+**Actualización 29/10/2026: la letra ya no va a la matriz, va a un LCD 16x2.** Se sumó una
+pantalla LCD con módulo I2C en la Pico, que muestra el texto escrito y la letra actual — probado
+de punta a punta. La matriz quedó reservada para el espejo facial, pensando en correr los dos
+proyectos a la vez con dos cámaras (implementado, falta probarlo). Todo el detalle en
+[`LCD extension/README.md`](LCD%20extension/README.md).
+
 ## Objetivo
 
 Traducir el abecedario dactilológico (lenguaje de señas) a letras normales, mostrando cada letra
@@ -410,10 +416,9 @@ nuevo:
    `reconocer_letra_stream.py` (están duplicados a propósito, hay que tocar los dos).
 4. Opcional: grabar `main.py` en la memoria interna de la Pico para que arranque sola con la
    alimentación, sin depender de Thonny.
-5. **En curso (desde el 23/10): pantalla LCD 16x2 para mostrar el texto escrito** — driver y
-   prueba aislada ya andando contra la Pico real; falta conectarlo al reconocedor por UDP. Todo
-   el detalle (cómo funciona el módulo I2C, cableado, diseño del paquete de 33 bytes, y la idea de
-   correr los dos proyectos a la vez con 2 cámaras para la presentación) en
+5. **Pantalla LCD 16x2 (23/10 al 29/10): hecha y probada de punta a punta.** Falta probar los
+   dos proyectos a la vez con dos cámaras, y reentrenar el `.pkl` actual, que quedó guardado con
+   scikit-learn 1.9.1 en vez de 1.7.2. Detalle en
    [`LCD extension/README.md`](LCD%20extension/README.md).
 
 ## Notas del entorno (para no reinstalar de cero)
@@ -435,7 +440,10 @@ Se intentó correr el entrenamiento en otra PC del laboratorio para no ocupar es
 
 **Del lado de la Jetson**, además de lo que ya usaba `probar_manos.py` (mediapipe, opencv,
 `hand_landmarker.task` en `/home/indea/hand_landmarker.task`), `reconocer_letra.py` necesita en
-el mismo venv (`espejo_facial_venv`, según se armó en la práctica):
+el mismo venv (`espejo_facial_venv`, según se armó en la práctica). **Ojo con la ruta:** desde el
+09/09 vive en `~/proyecto_gestos/espejo_facial_venv`, no en `~/espejo_facial_venv`; se activa con
+`source ~/proyecto_gestos/espejo_facial_venv/bin/activate`. Sin activarlo, el reconocedor falla
+con `No module named 'joblib'`.
 
 ```bash
 pip install "scikit-learn==1.7.2" joblib

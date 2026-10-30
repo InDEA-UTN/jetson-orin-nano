@@ -157,6 +157,18 @@ es la primera vez en la sesión o algo del hardware cambió.
 
 ## Cómo correrlo
 
+Primero activar el venv (vive en `~/proyecto_gestos/`, no en `~/`):
+
+```bash
+source ~/proyecto_gestos/espejo_facial_venv/bin/activate
+```
+
+**Desde el 29/10 los dos reconocedores mandan el texto al LCD de la Pico y no a la matriz**
+(`enviar_a_lcd()`, y `MANDAR_A_MATRIZ = False` arriba de cada script, en `True` vuelve a mandar
+la letra a la matriz). **Abren la webcam por su nombre fijo** (`CAMARA`, en
+`/dev/v4l/by-id/`), no como `/dev/video0`: con la cámara CSI conectada, la CSI se queda con
+`video0`. Detalle y motivos en [`../LCD extension/README.md`](../LCD%20extension/README.md).
+
 Necesita, en el venv de la Jetson (el mismo que ya usa `probar_manos.py`, con mediapipe/opencv):
 
 ```bash

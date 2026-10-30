@@ -4,14 +4,20 @@
 # bit 7 = píxel izquierdo). Reemplaza la versión con el LED de a bordo (fases 1-2 simplificada,
 # ver ../lado_pico.md) ahora que la matriz ya está cableada y probada (demo_cara_feliz.py).
 #
+# Ademas maneja un LCD 16x2 por I2C si esta conectado (extension del abecedario de senas, ver
+# ../../abecedario_de_senas/LCD extension/README.md): un segundo tipo de paquete, de 33 bytes
+# ('L' + linea 1 + linea 2), con el texto ya armado por la Jetson. Si el LCD no esta, todo lo
+# demas anda igual -- el espejo facial no lo usa.
+#
 # Necesita wifi_config.py al lado (copiá wifi_config.example.py y completá SSID/PASSWORD;
-# no se commitea, ver .gitignore).
+# no se commitea, ver .gitignore), y lcd_i2c.py (de la carpeta LCD extension) guardado en la Pico.
 
 import network
 import socket
 import time
-from machine import Pin, SPI
+from machine import Pin, SPI, I2C
 import max7219
+from lcd_i2c import LcdI2C
 from wifi_config import SSID, PASSWORD
 
 TIMEOUT_CONEXION = 15  # segundos por intento
@@ -53,10 +59,28 @@ cs = Pin(5, Pin.OUT)
 display = max7219.Matrix8x8(spi, cs, 1)
 display.brightness(2)
 
+# I2C1 en GP6/GP7: la matriz ya ocupa GP2/GP3/GP5. Se busca el LCD en vez de asumirlo: sin el,
+# LcdI2C() tiraria error al primer envio y mataria el script, y el espejo facial no lo tiene.
+i2c = I2C(1, sda=Pin(6), scl=Pin(7))
+if 0x27 in i2c.scan():
+    lcd = LcdI2C(i2c, 0x27)
+    lcd.linea(0, "Esperando...")
+    print("LCD encontrado en 0x27")
+else:
+    lcd = None
+    print("Sin LCD (no responde en 0x27) - sigo solo con la matriz")
+
 PORT = 5005
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(('0.0.0.0', PORT))
 print("Escuchando UDP en el puerto", PORT)
+
+# El ultimo paquete de cada tipo: la Jetson manda los dos en cada frame (~30 por segundo), casi
+# siempre iguales al anterior. Se usan para imprimir solo cuando algo cambia (si no, la consola
+# de Thonny se llena de 60 lineas por segundo) y para no reescribir el LCD sin necesidad --
+# escribir 32 caracteres por I2C tarda ~15 ms, y mientras tanto no se atienden paquetes.
+ultimo_sprite = None
+ultimo_texto = None
 
 while True:
     try:
@@ -69,10 +93,24 @@ while True:
         if not wlan.isconnected():
             conectar_wifi()
         continue
-    if len(data) != 8:
-        print("Paquete de", addr, "ignorado (esperaba 8 bytes, llegaron", len(data), ")")
+    # Se mira el LARGO primero: un sprite tambien puede empezar con el byte 'L' (0x4C = la fila
+    # 01001100), asi que la 'L' sola no alcanza para reconocer un paquete de texto.
+    if len(data) == 33 and data[0] == ord('L'):
+        if lcd is not None and data != ultimo_texto:
+            # chr() byte por byte en vez de .decode(): con un paquete con bytes raros, decode()
+            # tiraria error y mataria el script; asi, lcd_i2c los muestra como '?'.
+            texto = "".join(chr(b) for b in data[1:])
+            lcd.linea(0, texto[:16])
+            lcd.linea(1, texto[16:])
+            ultimo_texto = data
+            print("Texto de", addr, ":", texto)
         continue
-    print("Sprite de", addr, ":", data)
+    if len(data) != 8:
+        print("Paquete de", addr, "ignorado (esperaba 8 o 33 bytes, llegaron", len(data), ")")
+        continue
+    if data != ultimo_sprite:
+        print("Sprite de", addr, ":", data)
+        ultimo_sprite = data
     display.fill(0)
     for fila in range(8):
         byte_fila = data[fila]

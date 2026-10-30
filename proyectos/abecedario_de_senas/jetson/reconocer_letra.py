@@ -59,6 +59,18 @@ MODELO_LETRAS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'abeced
 IP_PICO = "10.42.0.170"
 PORT_PICO = 5005
 
+# La matriz queda reservada para el espejo facial: con los dos proyectos corriendo a la vez contra
+# la misma Pico, si los dos le mandaran sprites la matriz titilaria entre la cara y la letra. Las
+# senas se muestran solo en el LCD. En True vuelve a mandar la letra a la matriz (para mostrar
+# este proyecto solo, sin el espejo facial).
+MANDAR_A_MATRIZ = False
+
+# La webcam USB por su nombre fijo, no por numero: con la camara CSI conectada (la usa el espejo
+# facial), la CSI se queda con /dev/video0 y la webcam pasa a /dev/video1 -- y ese orden puede
+# cambiar al reiniciar o reconectar. Abrir video0 a ciegas daria la imagen verde cruda de la CSI.
+# El nombre sale de 'ls -l /dev/v4l/by-id/' (index0 es el nodo de video; index1 son metadatos).
+CAMARA = "/dev/v4l/by-id/usb-SN0002_1080P_Web_Camera_SN0002-video-index0"
+
 # Cuantos frames SEGUIDOS tiene que repetirse la misma letra cruda antes de confirmarla. Es el
 # primer numero a tocar en el paso 8 (ajuste fino): muy bajo deja pasar ruido, muy alto hace que
 # la matriz tarde en reaccionar a una letra nueva.
@@ -172,11 +184,24 @@ def enviar_a_matriz(letra):
     # no solo cuando la letra cambia: UDP puede perder un paquete en silencio, y si solo mandaramos
     # los cambios, un paquete perdido dejaria la matriz mostrando la letra vieja para siempre. Al
     # mandar siempre, el sistema se auto-corrige en el proximo frame (33 ms despues).
+    if not MANDAR_A_MATRIZ:
+        return
     if letra in letras_matriz.FUENTE:
         sprite = letras_matriz.sprite_de_letra(letra)
     else:
         sprite = ["0" * 8] * 8
     sock_pico.sendto(letras_matriz.sprite_a_bytes(sprite), (IP_PICO, PORT_PICO))
+
+
+def enviar_a_lcd(texto, confirmada, faltan):
+    # Paquete de 33 bytes para el LCD 16x2 de la Pico: 'L' + linea 1 + linea 2, cada linea
+    # rellenada con espacios a 16 (ver ../LCD extension/README.md). Se manda la pantalla entera en
+    # cada frame, igual que la matriz: un paquete perdido se corrige solo con el siguiente. Va al
+    # mismo socket/IP/puerto que la matriz -- la Pico los distingue por el largo.
+    linea1 = texto[-16:]            # los ultimos 16: el texto se corre a la izquierda al crecer
+    linea2 = f"Letra: {confirmada or '-':<5} {faltan if faltan is not None else '-':>3}"
+    paquete = b"L" + linea1.ljust(16).encode() + linea2.ljust(16).encode()
+    sock_pico.sendto(paquete, (IP_PICO, PORT_PICO))
 
 
 sock_pico = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -190,13 +215,16 @@ detector = vision.HandLandmarker.create_from_options(options)
 modelo = joblib.load(MODELO_LETRAS)  # se carga una sola vez, antes del loop
 estabilizador = EstabilizadorLetra()
 
-cap = cv2.VideoCapture(0)
+# CAP_V4L2 explicito: con un texto en vez de un numero, OpenCV si no lo trataria como un archivo
+# de video o un pipeline de GStreamer.
+cap = cv2.VideoCapture(CAMARA, cv2.CAP_V4L2)
 if not cap.isOpened():
     # Casi siempre es otro proceso que quedo con la camara tomada (ojo con Ctrl+Z, que
     # suspende en vez de cerrar). Se limpia con:  pkill -f reconocer_letra
     raise SystemExit(
-        "No se pudo abrir la camara (/dev/video0). Suele ser otro proceso que la tiene "
-        "ocupada: revisalo con 'ps aux | grep -E \"probar_manos|reconocer_letra\" | grep -v grep'")
+        f"No se pudo abrir la webcam ({CAMARA}). Revisar que este enchufada "
+        "('ls /dev/v4l/by-id/') y que no la tenga otro proceso: "
+        "'ps aux | grep -E \"probar_manos|reconocer_letra\" | grep -v grep'")
 
 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -228,6 +256,7 @@ try:
             # soltar la letra sostenida despues de UMBRAL_SIN_MANO frames.
             estabilizador.procesar(None)
             enviar_a_matriz(estabilizador.confirmada)
+            enviar_a_lcd(texto, estabilizador.confirmada, estabilizador.faltan())
             texto_con_borde(frame, "Mano: no detectada", 30, (0, 0, 255))
             texto_con_borde(frame, f"Texto: {texto[-30:]}", 80, (255, 255, 0))
             cv2.imshow(VENTANA, frame)
@@ -264,6 +293,7 @@ try:
         confirmada = estabilizador.confirmada
         enviar_a_matriz(confirmada)
         faltan = estabilizador.faltan()
+        enviar_a_lcd(texto, confirmada, faltan)
         color_confirmada = (0, 255, 0) if confirmada == letra_cruda else (200, 200, 200)
         texto_con_borde(
             frame,

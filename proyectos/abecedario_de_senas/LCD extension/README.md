@@ -1,10 +1,12 @@
 # Extensión LCD — texto de señas en una pantalla 16x2
 
-**Estado.** Al 23/10/2026: **el LCD funciona contra la Pico real, de forma aislada** — cableado
-verificado con `i2c.scan()` (responde en `0x27`) y `demo_lcd.py` escribiendo dos líneas de texto.
-**Todavía no está conectado al reconocedor**: falta que la Pico acepte el paquete de texto por UDP
-y que la Jetson lo mande (ver "Próximos pasos"). Hasta entonces, el proyecto de señas sigue
-andando exactamente igual que antes, solo con la matriz.
+**Estado.** Al 29/10/2026: **el LCD funciona de punta a punta con el reconocedor** — mano →
+letra → texto en el LCD, probado contra el hardware real. Antes, el 23/10, se había verificado
+el LCD aislado (`i2c.scan()` responde en `0x27`, `demo_lcd.py` escribe). Desde el 29/10 **la
+matriz quedó reservada para el espejo facial**: el reconocedor de señas ya no le manda la letra
+(`MANDAR_A_MATRIZ = False`). **Implementado pero todavía sin probar:** correr los dos proyectos a
+la vez con dos cámaras (CSI para la cara, webcam USB para las señas) — ver "Los dos proyectos a
+la vez".
 
 Antes hay que haber hecho: el pipeline del [README principal](../README.md) andando de punta a
 punta (cámara → letra → matriz).
@@ -121,7 +123,7 @@ Cómo correrlo en Thonny:
    nombre) — el demo lo importa desde ahí.
 2. Abrir `demo_lcd.py` y darle **Run (F5)**. Este no hace falta guardarlo en la Pico.
 
-## Cómo se va a conectar al reconocedor (diseño acordado, falta implementar)
+## Cómo se conecta al reconocedor
 
 ### Mandar el estado completo, no letra por letra
 
@@ -161,29 +163,110 @@ Pico sigue siendo una "pantalla tonta" que muestra lo que le llega.
   escribir 32 caracteres por I2C tarda ~15 ms, no tiene sentido hacerlo 30 veces por segundo.
 - Si algún día se pasa a un 20×4: 80 + 1 = 81 bytes, se ajusta en los dos lados.
 
-Matriz y LCD funcionan a la vez: la Jetson manda los dos paquetes seguidos en cada frame y la
-Pico atiende cada uno según su tipo.
+### Lado Pico: `main.py` (29/10)
+
+No se hizo un `main.py` aparte: la Pico corre **uno solo**, así que se amplió el que ya existía en
+[`../../espejo_facial_led/pico/main.py`](../../espejo_facial_led/pico/main.py) para que maneje
+matriz y LCD. Necesita `lcd_i2c.py` guardado en la Pico al lado.
+
+- **Al arrancar busca el LCD con `i2c.scan()`**. Si está, lo prende y muestra "Esperando..."
+  hasta el primer paquete; si no, sigue solo con la matriz (`lcd = None`). Así el espejo facial
+  anda igual sin el LCD conectado.
+- **En el loop**: 33 bytes y empieza con `'L'` → LCD; 8 bytes → matriz, sin cambios; cualquier
+  otra cosa se ignora.
+- **Recuerda el último paquete de cada tipo** (`ultimo_texto`, `ultimo_sprite`): reescribe el LCD
+  e imprime en la consola de Thonny solo cuando algo cambia. Antes imprimía cada sprite; con los
+  dos tipos de paquete serían ~60 líneas por segundo, ilegibles.
+- Los bytes se pasan a texto con `chr()` uno por uno, no con `.decode()`: un paquete con bytes
+  raros haría fallar `.decode()` y mataría el script; así, `lcd_i2c` los muestra como `?`.
+
+Se probó primero **sin el reconocedor**, mandando un paquete a mano desde la Jetson:
+
+```bash
+python3 -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.sendto(b'L' + b'HOLA DESDE'.ljust(16) + b'LA JETSON'.ljust(16), ('10.42.0.170', 5005))"
+```
+
+### Lado Jetson: `enviar_a_lcd()` (29/10)
+
+Agregada a [`../jetson/reconocer_letra.py`](../jetson/reconocer_letra.py) y
+[`../jetson/reconocer_letra_stream.py`](../jetson/reconocer_letra_stream.py) (duplicada a
+propósito, mismo criterio que `enviar_a_matriz()`). Se llama en cada frame, con o sin mano, y usa
+el mismo socket, IP y puerto que la matriz.
+
+- **Línea 1: `texto[-16:]`**, los últimos 16 caracteres. Al pasar de 16, el texto se corre a la
+  izquierda y siempre se ve lo más reciente.
+- **Línea 2: `Letra: B       5`**, la letra confirmada y los frames que faltan para escribirla. El
+  formato (`:<5` y `:>3`) reserva lugar fijo, así entra en 16 incluso con `space` o `del`:
+
+  ```
+  Letra: B       5
+  Letra: space  12
+  Letra: -       -     ← sin mano
+  ```
+
+**Probado de punta a punta el 29/10**: mano → texto en el LCD.
+
+## Los dos proyectos a la vez (para la presentación)
+
+Idea: correr **el espejo facial y el de señas al mismo tiempo** en la Jetson, contra la misma Pico
+— **la matriz para los gestos de cara y el LCD para las señas**. Son dos programas que no se
+conocen: cada uno manda sus paquetes por su propio socket a la misma IP y puerto, y la Pico,
+con un solo socket, los atiende uno por uno según el largo. Un paquete de cara nunca toca el
+LCD y uno de señas nunca toca la matriz. En la consola de Thonny se distinguen por el puerto de
+origen (`addr`), distinto para cada programa.
+
+```
+jetson_face.py      (cámara CSI) ──► 8 bytes  ──┐
+                                                ├──► Pico 10.42.0.170:5005 ─┬─► matriz
+reconocer_letra*.py (webcam USB) ──► 33 bytes ──┘                           └─► LCD
+```
+
+Lo hecho para eso (29/10):
+
+1. **El reconocedor de señas ya no manda a la matriz.** Si los dos programas le mandaran sprites,
+   titilaría entre la cara y la letra. Se hizo con un interruptor arriba de los dos scripts,
+   `MANDAR_A_MATRIZ = False`, en vez de borrar el código: en `True` vuelve a mandar la letra, por
+   si se quiere mostrar este proyecto solo. Mientras está en `False`, la matriz se queda con lo
+   último que recibió (la Pico no la borra sola); Stop/Run de `main.py` en Thonny la limpia.
+2. **Una cámara para cada uno.** Las dos cámaras se abren de formas completamente distintas, así
+   que no se pueden confundir:
+   - **Espejo facial → cámara CSI** (la que ya se había usado al principio de ese proyecto), por
+     el pipeline de GStreamer `nvarguscamerasrc` ya verificado en
+     [`../../espejo_facial_led/lado_jetson.md`](../../espejo_facial_led/lado_jetson.md)
+     sección 5. Detalle en
+     [`../../espejo_facial_led/integracion.md`](../../espejo_facial_led/integracion.md)
+     sección 13. Además, no pasa por USB, así que no le quita ancho de banda a la webcam.
+   - **Señas → webcam USB, por su nombre fijo**, constante `CAMARA` en los dos scripts:
+
+     ```python
+     CAMARA = "/dev/v4l/by-id/usb-SN0002_1080P_Web_Camera_SN0002-video-index0"
+     cap = cv2.VideoCapture(CAMARA, cv2.CAP_V4L2)
+     ```
+
+     Hacía falta: con las dos conectadas, `ls /dev/video*` dio `video0 video1 video2` y
+     `ls -l /dev/v4l/by-id/` mostró que la webcam es `video1` (`index0`, el video) y `video2`
+     (`index1`, metadatos). **La CSI se quedó con `video0`**: el `VideoCapture(0)` de antes habría
+     abierto la CSI cruda (imagen verde). `cv2.CAP_V4L2` va explícito porque, con un texto en
+     vez de un número, OpenCV podría tratarlo como archivo de video o pipeline de GStreamer.
+     Si se cambia de webcam, el nombre nuevo sale de `ls -l /dev/v4l/by-id/`.
+
+**Todavía sin probar.** Orden sugerido: primero cada uno solo (señas con su webcam escribiendo en
+el LCD; cara con la CSI moviendo la matriz) y después los dos juntos, una terminal para cada uno.
+Con los dos juntos, mirar la velocidad: si alguno reacciona notablemente más lento que solo,
+bajar la resolución de la CSI en el pipeline. `jetson_face.py` abre ventana (`cv2.imshow`), así
+que hay que estar sentado en la Jetson con el monitor, no por SSH.
+
+## Trampas de la jornada del 29/10
+
+| Síntoma | Causa | Solución |
+|---|---|---|
+| La Pico repite `Conectando a wifi... status: -2` | `-2` = `STAT_NO_AP_FOUND`: no encuentra la red. El hotspot de la Jetson no estaba levantado (al reiniciar, la Jetson vuelve a la WiFi del laboratorio) | En la Jetson: `nmcli device status` (si la WiFi dice `unavailable`, `sudo nmcli radio wifi on`) y `sudo nmcli connection up Hotspot`. La Pico reintenta sola, no hace falta reiniciarla |
+| `No module named 'joblib'` | El venv no estaba activado (el prompt no mostraba `(espejo_facial_venv)`) | Activarlo, ver la fila siguiente |
+| `source ~/espejo_facial_venv/bin/activate` → `No such file or directory` | El venv se mudó el 09/09 a `~/proyecto_gestos/` ([integracion.md](../../espejo_facial_led/integracion.md) sección 12) | `source ~/proyecto_gestos/espejo_facial_venv/bin/activate` |
+| `Can't initialize GTK backend` al correr `reconocer_letra.py` | Por SSH no hay ventana donde abrir `cv2.imshow` (trampa ya conocida del 16/09) | Por SSH, usar `reconocer_letra_stream.py` con el túnel |
+| `InconsistentVersionWarning: ... from version 1.9.1 when using version 1.7.2` | El `abecedario_modelo.pkl` actual (del 17/09) se guardó con scikit-learn 1.9.1, no con el venv de entrenamiento (1.7.2) | **Pendiente:** reentrenar con `entrenamiento_venv` activado y volver a copiarlo (ver "Compatibilidad de versiones" en el [README principal](../README.md)) |
 
 ## Próximos pasos
 
-1. **`main.py` de la Pico** (hoy en
-   [`../../espejo_facial_led/pico/main.py`](../../espejo_facial_led/pico/main.py)): aceptar el
-   paquete de 33 bytes y escribirlo con `lcd_i2c`; arrancar igual si el LCD no está conectado
-   (que el espejo facial siga andando sin él).
-2. **`reconocer_letra.py` y `reconocer_letra_stream.py`**: agregar `enviar_a_lcd()` que arme las
-   dos líneas y mande el paquete en cada frame (duplicado en los dos, mismo criterio que
-   `enviar_a_matriz()`). Por ahora siguen mandando también a la matriz.
-3. Probar de punta a punta: mano → texto en el LCD.
-
-### Más adelante: los dos proyectos a la vez (para la presentación)
-
-Idea acordada, postergada a propósito para terminar primero el LCD: con **2 cámaras**, correr el
-espejo facial y el de señas al mismo tiempo en la Jetson, cada uno con su cámara, contra la misma
-Pico — **la matriz para los gestos de cara y el LCD para las señas**. Implica:
-
-- Que el script de señas **deje de mandar a la matriz** (si no, los dos programas se pelean por
-  ella y titila).
-- Que cada script abra su propia cámara — mejor por nombre fijo (`/dev/v4l/by-id/...`) que por
-  número, porque `/dev/video0`/`video1` pueden intercambiarse al reiniciar.
-- Chequear que dos webcams en el mismo puerto USB no se queden sin ancho de banda, y que la
-  Jetson mantenga buenos fps con los dos modelos corriendo.
+1. Probar los dos proyectos a la vez (ver arriba), y medir si la velocidad alcanza.
+2. Reentrenar el `.pkl` con scikit-learn 1.7.2 para sacar el `InconsistentVersionWarning`.

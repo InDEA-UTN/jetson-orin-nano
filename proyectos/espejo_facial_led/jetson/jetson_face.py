@@ -1,5 +1,5 @@
 # Espejo Facial LED - lado Jetson
-# Fase 6 + 7: captura la webcam USB, corre MediaPipe Face Landmarker en vivo, cuantiza los
+# Fase 6 + 7: captura la camara CSI (antes la webcam USB, ver mas abajo PIPELINE_CSI), corre MediaPipe Face Landmarker en vivo, cuantiza los
 # gestos a estados discretos (ojos abierto/cerrado por ojo, cejas en 3 posiciones, boca en 4
 # formas, mirada izquierda/centro/derecha cuando los dos ojos estan abiertos), compone un sprite de
 # 8x8 y lo manda por UDP a la Pico W, que lo dibuja en la matriz MAX7219 (ver ../lado_pico.md
@@ -11,7 +11,7 @@
 # existiendo para cuando la Jetson esta sin monitor. Cerrar la ventana con 'q' (con foco en ella)
 # o Ctrl+C en la consola.
 #
-# Necesita, con el venv (~/espejo_facial_venv) activado:
+# Necesita, con el venv (~/proyecto_gestos/espejo_facial_venv) activado:
 #   - mediapipe, opencv (ver ../lado_jetson.md secciones 3 y 5)
 #   - el modelo descargado en /home/indea/proyecto_gestos/face_landmarker.task
 #   - gestos.py al lado de este archivo (la logica de metricas, estados y sprite)
@@ -46,17 +46,28 @@ options = vision.FaceLandmarkerOptions(
     num_faces=1)
 detector = vision.FaceLandmarker.create_from_options(options)
 
-cap = cv2.VideoCapture(0)
+# Camara CSI (IMX477) por GStreamer, no la webcam USB: la webcam queda para el abecedario de
+# senas, que corre al mismo tiempo (ver ../../abecedario_de_senas/LCD extension/README.md). Es el
+# mismo pipeline ya verificado en ../lado_jetson.md seccion 5 -- la CSI entrega datos crudos y
+# hay que pasarlos por el ISP con nvarguscamerasrc; abrirla como /dev/video0 da la imagen verde.
+# Agregado respecto de aquel: 'drop=1 max-buffers=1' en el appsink. Por defecto guarda TODOS los
+# frames; con dos modelos corriendo a la vez la Jetson procesa menos de 30 por segundo, se
+# acumularian y la matriz reaccionaria cada vez mas tarde. Asi se queda solo con el mas reciente.
+# El tamano lo fija el pipeline (1280x720), por eso ya no se usa cap.set() como con la webcam.
+PIPELINE_CSI = (
+    "nvarguscamerasrc sensor-id=0 ! "
+    "video/x-raw(memory:NVMM),width=1280,height=720,framerate=30/1 ! "
+    "nvvidconv ! video/x-raw,format=BGRx ! videoconvert ! video/x-raw,format=BGR ! "
+    "appsink drop=1 max-buffers=1"
+)
+cap = cv2.VideoCapture(PIPELINE_CSI, cv2.CAP_GSTREAMER)
 if not cap.isOpened():
     # Casi siempre es otro proceso que quedo con la camara tomada (ojo con Ctrl+Z, que
     # suspende en vez de cerrar). Se limpia con:  pkill -f jetson_face ; pkill -f ver_camara
     raise SystemExit(
-        "No se pudo abrir la camara (/dev/video0). Suele ser otro proceso que la tiene "
-        "ocupada: revisalo con 'ps aux | grep -E \"jetson_face|ver_camara\" | grep -v grep'")
-
-cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        "No se pudo abrir la camara CSI. Revisar el cable plano, que no la tenga otro proceso "
+        "('ps aux | grep -E \"jetson_face|ver_camara\" | grep -v grep') y, si sigue, reiniciar "
+        "el servicio de la camara: 'sudo systemctl restart nvargus-daemon'")
 
 VENTANA = "Espejo Facial - landmarks (Jetson)"
 cv2.namedWindow(VENTANA, cv2.WINDOW_NORMAL)
