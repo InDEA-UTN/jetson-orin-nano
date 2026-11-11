@@ -13,8 +13,8 @@ Plataforma: NVIDIA Jetson Orin Nano + Raspberry Pi Pico W.
   [`integracion.md`](integracion.md) (fases 6 y 7: integración completa, cuantización de gestos y
   calibración por persona). Quedan pendientes ajustes finos de umbrales, una IP reservada para la
   Pico y el video de demostración. **Desde el 29/10** `jetson_face.py` vuelve a usar la cámara CSI,
-  para dejarle la webcam USB al abecedario de señas y correr los dos proyectos a la vez (falta
-  probarlo, ver [`integracion.md`](integracion.md) sección 13).
+  para dejarle la webcam USB al abecedario de señas y correr los dos proyectos a la vez (probado
+  el 30/10, los dos fluidos; ver [`integracion.md`](integracion.md) sección 13).
 - **Requisitos previos:** la placa andando con JetPack 6 y la cámara funcionando; ver la
   [guía de iniciación](../../guia_de_iniciacion/).
 

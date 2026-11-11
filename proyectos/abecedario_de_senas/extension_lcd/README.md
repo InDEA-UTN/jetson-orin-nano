@@ -4,9 +4,9 @@
 letra → texto en el LCD, probado contra el hardware real. Antes, el 23/10, se había verificado
 el LCD aislado (`i2c.scan()` responde en `0x27`, `demo_lcd.py` escribe). Desde el 29/10 **la
 matriz quedó reservada para el espejo facial**: el reconocedor de señas ya no le manda la letra
-(`MANDAR_A_MATRIZ = False`). **Implementado pero todavía sin probar:** correr los dos proyectos a
-la vez con dos cámaras (CSI para la cara, webcam USB para las señas) — ver "Los dos proyectos a
-la vez".
+(`MANDAR_A_MATRIZ = False`). **El 30/10 se probaron los dos proyectos a la vez** con dos cámaras
+(CSI para la cara, webcam USB para las señas): los dos fluidos, sin ajustes — ver "Los dos
+proyectos a la vez".
 
 Antes hay que haber hecho: el pipeline del [README principal](../README.md) andando de punta a
 punta (cámara → letra → matriz).
@@ -250,11 +250,12 @@ Lo hecho para eso (29/10):
      vez de un número, OpenCV podría tratarlo como archivo de video o pipeline de GStreamer.
      Si se cambia de webcam, el nombre nuevo sale de `ls -l /dev/v4l/by-id/`.
 
-**Todavía sin probar.** Orden sugerido: primero cada uno solo (señas con su webcam escribiendo en
-el LCD; cara con la CSI moviendo la matriz) y después los dos juntos, una terminal para cada uno.
-Con los dos juntos, mirar la velocidad: si alguno reacciona notablemente más lento que solo,
-bajar la resolución de la CSI en el pipeline. `jetson_face.py` abre ventana (`cv2.imshow`), así
-que hay que estar sentado en la Jetson con el monitor, no por SSH.
+**Probado el 30/10, con resultado bueno.** Se siguió este orden: primero cada uno solo (señas con
+su webcam escribiendo en el LCD; cara con la CSI moviendo la matriz) y después los dos juntos,
+una terminal para cada uno. Con los dos a la vez, **la matriz siguió la cara y el LCD las señas,
+los dos fluidos**, sin demora notable y sin tener que tocar nada del código del 29/10 (no hizo
+falta bajar la resolución de la CSI). `jetson_face.py` abre ventana (`cv2.imshow`), así que hay
+que estar sentado en la Jetson con el monitor, no por SSH.
 
 ## Trampas de la jornada del 29/10
 
@@ -268,5 +269,4 @@ que hay que estar sentado en la Jetson con el monitor, no por SSH.
 
 ## Próximos pasos
 
-1. Probar los dos proyectos a la vez (ver arriba), y medir si la velocidad alcanza.
-2. Reentrenar el `.pkl` con scikit-learn 1.7.2 para sacar el `InconsistentVersionWarning`.
+1. Reentrenar el `.pkl` con scikit-learn 1.7.2 para sacar el `InconsistentVersionWarning`.

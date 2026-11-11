@@ -47,7 +47,7 @@ options = vision.FaceLandmarkerOptions(
 detector = vision.FaceLandmarker.create_from_options(options)
 
 # Camara CSI (IMX477) por GStreamer, no la webcam USB: la webcam queda para el abecedario de
-# senas, que corre al mismo tiempo (ver ../../abecedario_de_senas/LCD extension/README.md). Es el
+# senas, que corre al mismo tiempo (ver ../../abecedario_de_senas/extension_lcd/README.md). Es el
 # mismo pipeline ya verificado en ../lado_jetson.md seccion 5 -- la CSI entrega datos crudos y
 # hay que pasarlos por el ISP con nvarguscamerasrc; abrirla como /dev/video0 da la imagen verde.
 # Agregado respecto de aquel: 'drop=1 max-buffers=1' en el appsink. Por defecto guarda TODOS los

@@ -5,20 +5,27 @@
 # ver ../lado_pico.md) ahora que la matriz ya está cableada y probada (demo_cara_feliz.py).
 #
 # Ademas maneja un LCD 16x2 por I2C si esta conectado (extension del abecedario de senas, ver
-# ../../abecedario_de_senas/LCD extension/README.md): un segundo tipo de paquete, de 33 bytes
+# ../../abecedario_de_senas/extension_lcd/README.md): un segundo tipo de paquete, de 33 bytes
 # ('L' + linea 1 + linea 2), con el texto ya armado por la Jetson. Si el LCD no esta, todo lo
 # demas anda igual -- el espejo facial no lo usa.
 #
 # Necesita wifi_config.py al lado (copiá wifi_config.example.py y completá SSID/PASSWORD;
-# no se commitea, ver .gitignore), y lcd_i2c.py (de la carpeta LCD extension) guardado en la Pico.
+# no se commitea, ver .gitignore). Para el LCD, ademas, lcd_i2c.py (de la carpeta extension_lcd)
+# guardado en la Pico -- es opcional: sin el, se sigue solo con la matriz.
 
 import network
 import socket
 import time
 from machine import Pin, SPI, I2C
 import max7219
-from lcd_i2c import LcdI2C
 from wifi_config import SSID, PASSWORD
+
+# lcd_i2c.py es de otro proyecto (abecedario de senas): si no esta guardado en la Pico, se sigue
+# sin LCD en vez de morir con ImportError -- el espejo facial no lo necesita.
+try:
+    from lcd_i2c import LcdI2C
+except ImportError:
+    LcdI2C = None
 
 TIMEOUT_CONEXION = 15  # segundos por intento
 
@@ -34,12 +41,11 @@ wlan.config(pm=0xa11140)
 
 
 def conectar_wifi():
-    """Bloquea hasta conectar. Sin timeout ni diagnostico, si la contrasena esta mal o el
-    hotspot no esta levantado la Pico se queda colgada sin ninguna pista de que esta atascado.
-    Version con timeout + status ya armada y documentada en lado_pico.md seccion 4 (se uso ahi
-    para diagnosticar este mismo tipo de problema durante las pruebas) -- llevada aca al script
-    final. Se reusa tambien para reconectar si el wifi se cae a mitad de sesion (ver el loop
-    principal, mas abajo)."""
+    """Bloquea hasta conectar, reintentando cada TIMEOUT_CONEXION segundos. Mientras espera
+    imprime wlan.status() una vez por segundo, para que se vea por que no conecta (por ejemplo
+    -2 = no encuentra la red: el hotspot no esta levantado). Es la version con timeout armada en
+    lado_pico.md seccion 4. Se usa al arrancar y tambien para reconectar si el wifi se cae a mitad
+    de sesion (ver el loop principal, mas abajo)."""
     wlan.connect(SSID, PASSWORD)
     while not wlan.isconnected():
         t0 = time.time()
@@ -62,7 +68,10 @@ display.brightness(2)
 # I2C1 en GP6/GP7: la matriz ya ocupa GP2/GP3/GP5. Se busca el LCD en vez de asumirlo: sin el,
 # LcdI2C() tiraria error al primer envio y mataria el script, y el espejo facial no lo tiene.
 i2c = I2C(1, sda=Pin(6), scl=Pin(7))
-if 0x27 in i2c.scan():
+if LcdI2C is None:
+    lcd = None
+    print("Sin lcd_i2c.py en la Pico - sigo solo con la matriz")
+elif 0x27 in i2c.scan():
     lcd = LcdI2C(i2c, 0x27)
     lcd.linea(0, "Esperando...")
     print("LCD encontrado en 0x27")
@@ -100,10 +109,17 @@ while True:
             # chr() byte por byte en vez de .decode(): con un paquete con bytes raros, decode()
             # tiraria error y mataria el script; asi, lcd_i2c los muestra como '?'.
             texto = "".join(chr(b) for b in data[1:])
-            lcd.linea(0, texto[:16])
-            lcd.linea(1, texto[16:])
+            # Mismo criterio que el try de recvfrom: un error de I2C a mitad de sesion (un cable
+            # flojo) no tiene que matar el script y dejar la matriz congelada. Se marca el texto
+            # como escrito igual, para no imprimir el error 30 veces por segundo: se vuelve a
+            # intentar con el proximo texto distinto.
+            try:
+                lcd.linea(0, texto[:16])
+                lcd.linea(1, texto[16:])
+                print("Texto de", addr, ":", texto)
+            except OSError as e:
+                print("Error escribiendo en el LCD:", e, "- revisar cables SDA/SCL")
             ultimo_texto = data
-            print("Texto de", addr, ":", texto)
         continue
     if len(data) != 8:
         print("Paquete de", addr, "ignorado (esperaba 8 o 33 bytes, llegaron", len(data), ")")

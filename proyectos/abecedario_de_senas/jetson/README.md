@@ -167,7 +167,7 @@ source ~/proyecto_gestos/espejo_facial_venv/bin/activate
 (`enviar_a_lcd()`, y `MANDAR_A_MATRIZ = False` arriba de cada script, en `True` vuelve a mandar
 la letra a la matriz). **Abren la webcam por su nombre fijo** (`CAMARA`, en
 `/dev/v4l/by-id/`), no como `/dev/video0`: con la cámara CSI conectada, la CSI se queda con
-`video0`. Detalle y motivos en [`../LCD extension/README.md`](../LCD%20extension/README.md).
+`video0`. Detalle y motivos en [`../extension_lcd/README.md`](../extension_lcd/README.md).
 
 Necesita, en el venv de la Jetson (el mismo que ya usa `probar_manos.py`, con mediapipe/opencv):
 

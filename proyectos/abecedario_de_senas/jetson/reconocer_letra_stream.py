@@ -154,7 +154,7 @@ def enviar_a_matriz(letra):
 
 def enviar_a_lcd(texto, confirmada, faltan):
     # Paquete de 33 bytes para el LCD 16x2 de la Pico: 'L' + linea 1 + linea 2, cada linea
-    # rellenada con espacios a 16 (ver ../LCD extension/README.md). Se manda la pantalla entera en
+    # rellenada con espacios a 16 (ver ../extension_lcd/README.md). Se manda la pantalla entera en
     # cada frame, igual que la matriz: un paquete perdido se corrige solo con el siguiente. Va al
     # mismo socket/IP/puerto que la matriz -- la Pico los distingue por el largo.
     linea1 = texto[-16:]            # los ultimos 16: el texto se corre a la izquierda al crecer

@@ -15,9 +15,9 @@ funcionalidad nueva — ver "Qué queda por mejorar".
 
 **Actualización 29/10/2026: la letra ya no va a la matriz, va a un LCD 16x2.** Se sumó una
 pantalla LCD con módulo I2C en la Pico, que muestra el texto escrito y la letra actual — probado
-de punta a punta. La matriz quedó reservada para el espejo facial, pensando en correr los dos
-proyectos a la vez con dos cámaras (implementado, falta probarlo). Todo el detalle en
-[`LCD extension/README.md`](LCD%20extension/README.md).
+de punta a punta. La matriz quedó reservada para el espejo facial, y **el 30/10 se probaron los
+dos proyectos a la vez con dos cámaras**: los dos fluidos, sin ajustes. Todo el detalle en
+[`extension_lcd/README.md`](extension_lcd/README.md).
 
 ## Objetivo
 
@@ -416,10 +416,10 @@ nuevo:
    `reconocer_letra_stream.py` (están duplicados a propósito, hay que tocar los dos).
 4. Opcional: grabar `main.py` en la memoria interna de la Pico para que arranque sola con la
    alimentación, sin depender de Thonny.
-5. **Pantalla LCD 16x2 (23/10 al 29/10): hecha y probada de punta a punta.** Falta probar los
-   dos proyectos a la vez con dos cámaras, y reentrenar el `.pkl` actual, que quedó guardado con
+5. **Pantalla LCD 16x2 (23/10 al 30/10): hecha y probada de punta a punta**, también con los dos
+   proyectos corriendo a la vez. Falta reentrenar el `.pkl` actual, que quedó guardado con
    scikit-learn 1.9.1 en vez de 1.7.2. Detalle en
-   [`LCD extension/README.md`](LCD%20extension/README.md).
+   [`extension_lcd/README.md`](extension_lcd/README.md).
 
 ## Notas del entorno (para no reinstalar de cero)
 

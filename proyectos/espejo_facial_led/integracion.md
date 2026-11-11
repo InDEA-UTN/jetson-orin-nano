@@ -550,7 +550,7 @@ Para una presentación con los dos proyectos funcionando a la vez, se repartiero
 **la matriz queda para este proyecto (gestos de cara) y un LCD 16x2 nuevo para el
 [abecedario de señas](../abecedario_de_senas/)**, las dos en la misma Pico. El diseño completo
 (cómo funciona el LCD, el paquete de 33 bytes, por qué se manda la pantalla entera) está en
-[`../abecedario_de_senas/LCD extension/README.md`](../abecedario_de_senas/LCD%20extension/README.md);
+[`../abecedario_de_senas/extension_lcd/README.md`](../abecedario_de_senas/extension_lcd/README.md);
 acá solo lo que cambió en los archivos de este proyecto.
 
 ### `pico/main.py`: un segundo tipo de paquete
@@ -561,11 +561,13 @@ acá solo lo que cambió en los archivos de este proyecto.
   `'L'` va al LCD. Se mira el largo primero porque un sprite también puede empezar con el byte
   `'L'` (`0x4C` = la fila `01001100`).
 - Ahora imprime en la consola de Thonny **solo cuando el sprite cambia**, no en cada paquete.
-- Necesita `lcd_i2c.py` (de la carpeta del LCD) guardado en la Pico, aunque el LCD no esté
-  conectado: si falta, el `import` falla.
+- `lcd_i2c.py` (de la carpeta del LCD) es **opcional**: el `import` está dentro de un
+  `try/except ImportError`, así que una Pico sin ese archivo arranca igual, solo con la matriz.
+  En la consola de Thonny, el mensaje dice por qué no hay LCD: `Sin lcd_i2c.py en la Pico` (falta
+  el archivo) o `Sin LCD (no responde en 0x27)` (está el archivo pero no el LCD).
 
-**Verificado el 29/10** con el reconocedor de señas mandando texto al LCD. La matriz con este
-proyecto todavía no se volvió a probar con el `main.py` nuevo.
+**Verificado el 29/10** con el reconocedor de señas mandando texto al LCD, y **el 30/10** con
+este proyecto moviendo la matriz al mismo tiempo (ver la subsección siguiente).
 
 ### `jetson/jetson_face.py`: de nuevo la cámara CSI
 
@@ -595,9 +597,9 @@ cap = cv2.VideoCapture(PIPELINE_CSI, cv2.CAP_GSTREAMER)
   webcam pasa a `video1`, así que `test_iris.py` y `ver_camara_en_vivo.py`, que siguen abriendo
   `VideoCapture(0)`, ahora abrirían la CSI cruda (imagen verde) si están las dos conectadas.
 
-**Todavía sin probar.** Primero correrlo solo, sentado en la Jetson (abre ventana), y después junto
-con el reconocedor de señas. Si con los dos juntos va notablemente más lento, bajar la resolución
-del pipeline.
+**Probado el 30/10:** primero solo, sentado en la Jetson (abre ventana), y después junto con el
+reconocedor de señas. Con los dos a la vez anduvieron fluidos, sin demora notable: no hizo falta
+bajar la resolución del pipeline ni tocar nada más.
 
 ---
 
