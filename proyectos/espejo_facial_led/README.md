@@ -5,9 +5,16 @@ Plataforma: NVIDIA Jetson Orin Nano + Raspberry Pi Pico W.
 
 - **Responsable:** Lisandro Elmelaj ([@lisandroelmelaj](https://github.com/lisandroelmelaj))
 - **Revisor:** Javier Velez ([@javovelez](https://github.com/javovelez))
-- **Estado:** En curso — fases 0 y 3 a 5 del lado Jetson ([`lado_jetson.md`](lado_jetson.md)) y
-  fases 1-2 del lado Pico W validadas con el LED de a bordo ([`lado_pico.md`](lado_pico.md)).
-  Falta la matriz MAX7219 para cerrar las fases 1-2 de verdad
+- **Estado:** **Funcionando de punta a punta** desde el 31/08 — la Jetson detecta la cara con
+  MediaPipe, cuantiza los gestos (ojos, cejas y boca) y manda el sprite de 8 bytes por UDP a la
+  Pico W, que lo dibuja en la matriz MAX7219 en vivo. El recorrido está en tres documentos:
+  [`lado_jetson.md`](lado_jetson.md) (visión por computador, fases 0 y 3-5),
+  [`lado_pico.md`](lado_pico.md) (WiFi, UDP y matriz, fases 1-2) e
+  [`integracion.md`](integracion.md) (fases 6 y 7: integración completa, cuantización de gestos y
+  calibración por persona). Quedan pendientes ajustes finos de umbrales, una IP reservada para la
+  Pico y el video de demostración. **Desde el 29/10** `jetson_face.py` vuelve a usar la cámara CSI,
+  para dejarle la webcam USB al abecedario de señas y correr los dos proyectos a la vez (probado
+  el 30/10, los dos fluidos; ver [`integracion.md`](integracion.md) sección 13).
 - **Requisitos previos:** la placa andando con JetPack 6 y la cámara funcionando; ver la
   [guía de iniciación](../../guia_de_iniciacion/).
 
@@ -149,7 +156,9 @@ Bazel que **no aplican acá**. Ignorarlos.
 
 - Reconocimiento de emociones con una CNN propia acelerada por TensorRT
 - Múltiples caras simultáneas, cada una controlando su propia matriz
-- Estimación de mirada precisa con seguimiento de iris
+- Estimación de mirada vertical (arriba/abajo) con seguimiento de iris — la horizontal
+  (izquierda/centro/derecha) ya está resuelta sin GPU (ver `integracion.md` sección 9); la vertical
+  quedó pendiente porque se confunde con el parpadeo y las cejas, y necesitaría una métrica más fina
 - Modelo entrenado por el propio alumno con TAO Toolkit
 
 ---
@@ -249,9 +258,14 @@ fantasma, la solución es intercalar un buffer 74HCT125 en las líneas DIN/CLK/C
    detector.
 5. **Cuantización a estados discretos**: en lugar de mapear valores continuos a píxeles (queda
    ruidoso y feo), se definen estados:
-   - Ojos: 3 niveles (abierto / entrecerrado / cerrado)
+   - Ojos: 2 estados (abierto / cerrado). Se habían planificado 3, con un "entrecerrado" en el
+     medio, pero en una matriz de 8×8 ese nivel intermedio no se ve bien ni queda claro, así que
+     se descartó al implementarlo — ver [`integracion.md`](integracion.md) sección 5
    - Cejas: 3 posiciones (normal / levantadas / fruncidas)
    - Boca: 4 formas (neutra / sonrisa / abierta / triste)
+   - Mirada (agregada después, no estaba en el plan original): 3 estados (izquierda / centro /
+     derecha), solo con los dos ojos abiertos. Se probó también arriba/abajo y se descartó — ver
+     [`integracion.md`](integracion.md) sección 9
 6. **Composición del sprite**: se combina el estado de cada rasgo en una matriz de 8×8 bits → 8
    bytes.
 7. **Envío**: socket UDP al Pico, ~30 paquetes por segundo.
@@ -288,6 +302,12 @@ inmediato. Es el mismo criterio que usan los protocolos de video en vivo.
 
 **Extensión futura:** si se agregan más matrices (ojos y boca por separado), basta anteponer un
 byte de dirección. El resto del sistema no cambia.
+
+**Segundo tipo de paquete (desde el 29/10):** el abecedario de señas usa la misma Pico, el mismo
+`main.py` y el mismo puerto para escribir en un LCD 16x2: paquetes de **33 bytes** (`'L'` + 2
+líneas de 16 caracteres). La Pico los distingue por el largo, así que los de 8 bytes de este
+proyecto siguen funcionando exactamente igual. Detalle en [`integracion.md`](integracion.md)
+sección 13.
 
 ---
 
@@ -332,6 +352,9 @@ real para iterar.
 **Calibración de umbrales.** Los valores de EAR/MAR varían entre personas. El sistema necesita una
 rutina simple de calibración (o umbrales relativos a un promedio de los primeros segundos) para no
 funcionar solo con una cara.
+**Resuelto el 31/08**, y con la segunda de esas dos opciones: una calibración inicial de 3 segundos
+mide la cara neutra de quien esté adelante y de ahí salen todos los umbrales de la sesión — ver
+[`integracion.md`](integracion.md) sección 6.
 
 **Rendimiento.** No es un riesgo en esta plataforma. Face Mesh corre holgado; el cuello de botella
 será la cámara.
@@ -366,10 +389,18 @@ proyectos/espejo_facial_led/
   README.md          # esta especificación
   lado_jetson.md     # lo hecho del lado Jetson, con sus trampas
   lado_pico.md       # lo hecho del lado Pico W
+  integracion.md     # fases 6 y 7: integración completa y refinamiento de gestos
   jetson/            # código que corre en la Jetson (Python)
-    jetson_face.py
+    gestos.py              # métricas, calibración, estados y sprite (lo comparten los otros dos)
+    jetson_face.py         # el programa real: cámara → gestos → sprite por UDP a la Pico
+    ver_camara_en_vivo.py  # visor de diagnóstico: el video con los estados dibujados encima
+    test_iris.py           # script suelto para validar la mirada (que ojo es izq/der, valores
+                            # crudos); no lo usan jetson_face.py ni ver_camara_en_vivo.py
   pico/              # código que corre en la Pico W (MicroPython)
-    main.py          # este nombre es obligatorio: MicroPython lo ejecuta solo al arrancar
+    main.py                # este nombre es obligatorio: MicroPython lo ejecuta solo al arrancar
+    max7219.py             # driver de la matriz
+    demo_cara_feliz.py     # prueba aislada de la matriz, sin WiFi
+    wifi_config.example.py # plantilla; el wifi_config.py real no se versiona
   imagenes/
 ```
 
